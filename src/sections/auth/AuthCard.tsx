@@ -1,0 +1,24 @@
+// MATERIAL - UI
+import Box from '@mui/material/Box';
+
+// PROJECT IMPORTS
+import MainCard, { MainCardProps } from 'components/MainCard';
+
+// ==============================|| AUTHENTICATION - CARD ||============================== //
+
+const AuthCard = ({ children, ...other }: MainCardProps) => (
+  <MainCard
+    className="flex items-center"
+    sx={{
+      // margin: { xs: 2.5, md: 3 },
+      width: '100%',
+      padding: { xs: 2.5, md: 3 }
+    }}
+    content={false}
+    {...other}
+  >
+    <Box sx={{ p: { xs: 2, sm: 3, md: 4, xl: 5 } }}>{children}</Box>
+  </MainCard>
+);
+
+export default AuthCard;

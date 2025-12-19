@@ -16,12 +16,12 @@ const icons = {
 
 const allPages: NavItemType = {
   id: 'Admin-menu',
-  title: <FormattedMessage id="Admin Menu" />,
+  title: <FormattedMessage id="Menu" />,
   type: 'group',
   children: [
     {
       id: 'dashboard',
-      title: <FormattedMessage id="dashboard" />,
+      title: <FormattedMessage id="Admin - Dashboard" />,
       type: 'item',
       icon: icons.samplePage,
       url: '/dashboard'
@@ -29,7 +29,7 @@ const allPages: NavItemType = {
     },
     {
       id: 'Management Data',
-      title: <FormattedMessage id="Management Data" />,
+      title: <FormattedMessage id="Admin - Management Data" />,
       type: 'item',
       icon: icons.samplePage,
       url: '/ManagementData'
@@ -37,7 +37,7 @@ const allPages: NavItemType = {
     },
     {
       id: 'Reports Monitoring',
-      title: <FormattedMessage id="Reports Monitoring" />,
+      title: <FormattedMessage id="Admin -Reports Monitoring" />,
       type: 'item',
       icon: icons.samplePage,
       url: '/ReportsMonitoring'
@@ -53,10 +53,17 @@ const allPages: NavItemType = {
     // }
       ,{
           id: 'Dashboarduser',
-          title: <FormattedMessage id="Dashboarduser" />, 
+          title: <FormattedMessage id="User - Dashboard" />, 
           type: 'item',
           icon: icons.samplePage,
           url: '/dashboarduser'
+        },
+        {
+          id: 'Dashboardsuper',
+          title: <FormattedMessage id="Supervisor - Dashboard" />, 
+          type: 'item',
+          icon: icons.samplePage,
+          url: '/dashboardsuper'
         },
   ]
 };

@@ -26,7 +26,7 @@ const CustomBreadcrumbs: React.FC<CustomBreadcrumbsProps> = ({
 
   return (
     <Box display="flex" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={2}>
-      <Breadcrumbs items={items} />
+      <Breadcrumbs custom links={items.map(title => ({ title }))} />
       <Box display="flex" alignItems="center" gap={1}>
         {showDate && (
           <TextField

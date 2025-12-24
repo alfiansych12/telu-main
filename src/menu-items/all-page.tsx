@@ -65,6 +65,22 @@ const allPages: NavItemType = {
           icon: icons.samplePage,
           url: '/dashboardsuper'
         },
+
+        {
+          id: 'Monitoringsuper',
+          title: <FormattedMessage id="Supervisor - Monitoring" />, 
+          type: 'item',
+          icon: icons.samplePage,
+          url: '/Monitoringsuper'
+        },
+
+          {
+          id: 'Profilesuper',
+          title: <FormattedMessage id="Supervisor - Profile" />, 
+          type: 'item',
+          icon: icons.samplePage,
+          url: '/Profilesuper'
+        },
   ]
 };
 

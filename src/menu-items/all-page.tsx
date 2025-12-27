@@ -58,6 +58,14 @@ const allPages: NavItemType = {
           icon: icons.samplePage,
           url: '/dashboarduser'
         },
+
+        {
+          id: 'Profiluser',
+          title: <FormattedMessage id="User - Profile" />, 
+          type: 'item',
+          icon: icons.samplePage,
+          url: '/Profilepart'
+        },
         {
           id: 'Dashboardsuper',
           title: <FormattedMessage id="Supervisor - Dashboard" />, 

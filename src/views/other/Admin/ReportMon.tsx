@@ -1,141 +1,194 @@
-
 'use client';
-import React from 'react';
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 
 // MATERIAL - UI
-
 import Typography from '@mui/material/Typography';
+import { TextField, CircularProgress, Alert, Box, Grid } from '@mui/material';
 
 // PROJECT IMPORTS
 import MainCard from 'components/MainCard';
 import { useTheme } from '@mui/material/styles';
-import { TextField } from '@mui/material';
 import CustomBreadcrumbs from 'components/@extended/CustomBreadcrumbs';
+import { getAttendances } from 'utils/api/attendances';
 
-
-// ==============================|| SAMPLE PAGE ||============================== //
-
+// ==============================|| REPORT MONITORING PAGE ||============================== //
 
 const ReportMonitoringView = () => {
   const theme = useTheme();
+  const [dateFilter, setDateFilter] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
+
+  // Get date range for last 7 days
+  const today = new Date();
+  const sevenDaysAgo = new Date(today);
+  sevenDaysAgo.setDate(today.getDate() - 7);
+
+  const dateFrom = sevenDaysAgo.toISOString().split('T')[0];
+  const dateTo = today.toISOString().split('T')[0];
+
+  // Fetch attendances
+  const { data: attendancesData, isLoading, error } = useQuery({
+    queryKey: ['attendances', dateFrom, dateTo, roleFilter],
+    queryFn: () => getAttendances({
+      dateFrom: dateFilter || dateFrom,
+      dateTo: dateFilter || dateTo,
+      pageSize: 50,
+    }),
+  });
+
+  // Calculate stats
+  const stats = attendancesData?.attendances ? {
+    totalPresent: attendancesData.attendances.filter(a => a.status === 'present').length,
+    totalLate: attendancesData.attendances.filter(a => a.status === 'late').length,
+    totalAbsent: attendancesData.attendances.filter(a => a.status === 'absent').length,
+    totalExcused: attendancesData.attendances.filter(a => a.status === 'excused').length,
+  } : null;
 
   return (
     <>
-    <MainCard border={false} shadow={theme.customShadows.z1} sx={{ mb: 3, p: 0 }}>
+      <MainCard border={false} shadow={theme.customShadows.z1} sx={{ mb: 3, p: 0 }}>
         <CustomBreadcrumbs
-          items={['Dashboard', 'Report']}
+          items={['Dashboard', 'Report Monitoring']}
           showDate
           showExport
         />
       </MainCard>
-      <div style={{ display:'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' ,gap:24, marginBottom:24 }}>
-        <MainCard border={false} shadow={theme.customShadows.z1} sx={{ height:'100%'}}>
-            <Typography variant='h3' sx={{ display:'flex', alignItems:'center' ,gap:5 }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 32, verticalAlign: 'middle' }}>Calendar_Today</span>
-                Recap Absence
-            </Typography>
-        </MainCard>
-        <MainCard border={false} shadow={theme.customShadows.z1} sx={{ height:'100%'}}>
-            <Typography variant='h3' sx={{ display:'flex', alignItems:'center' ,gap:5 }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 32, verticalAlign: 'middle' }}>groups</span>
-                Participant Activities
-            </Typography>
-        </MainCard>
-        <MainCard border={false} shadow={theme.customShadows.z1} sx={{ height:'100%'}}>
-            <Typography variant='h3' sx={{ display:'flex', alignItems:'center' ,gap:5 }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 32, verticalAlign: 'middle' }}>location_on</span>
-                Request Check-Un
-            </Typography>
-        </MainCard>
-      </div>
 
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(220px,1fr))', gap:24, marginBottom:24 }} >
-        <MainCard border={false} shadow={theme.customShadows.z1} sx={{ height:'80%'}}>
-          {/* ########## FILTER BAR ########## */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24, flexWrap: 'wrap', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, flex: 1 }}>
-              <TextField
-                label="Date"
-                type="date"
-                size="small"
-                InputLabelProps={{ shrink: true }}
-                sx={{ minWidth: 220, maxWidth: 180 }}
-              />
-              <TextField
-                select
-                label="Unit"
-                size="small"
-                defaultValue="all"
-                SelectProps={{ native: true }}
-                sx={{ minWidth: 180, maxWidth: 180 }}
-              >
-                <option value="all">All Units</option>
-                <option value="Participants">Participants</option>
-                <option value="Supervisors">Supervisors</option>
-              </TextField>
-                 <TextField
-                select
-                label="Role"
-                size="small"
-                defaultValue="all"
-                SelectProps={{ native: true }}
-                sx={{ minWidth: 180, maxWidth: 180 }}
-              >
-                <option value="all">All Roles</option>
-                <option value="Participants">Participants</option>
-                <option value="Supervisors">Supervisors</option>
-              </TextField>
-            </div>
-            <div>
-              <button style={{ background: '#0000FF', color: '#fff', border: 'none', borderRadius: 4, padding: '8px 20px', fontWeight: 600, cursor: 'pointer' }}>
-                Export Reports
-              </button>
-            </div>
-          </div>
+      {/* Stats Cards */}
+      {/* Stats Cards */}
+      <Grid container spacing={3} sx={{ mb: 3 }}>
+        <Grid item xs={12} sm={4}>
+          <MainCard border={false} shadow={theme.customShadows.z1} sx={{ height: '100%' }}>
+            <Typography variant='h6' sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 24, verticalAlign: 'middle', color: '#4caf50' }}>check_circle</span>
+              Present
+            </Typography>
+            {isLoading ? <CircularProgress size={24} sx={{ mt: 1 }} /> : (
+              <Typography variant="h3" sx={{ mt: 1, fontSize: { xs: '1.5rem', md: '2.5rem' } }}>{stats?.totalPresent || 0}</Typography>
+            )}
+          </MainCard>
+        </Grid>
+        <Grid item xs={12} sm={4}>
+          <MainCard border={false} shadow={theme.customShadows.z1} sx={{ height: '100%' }}>
+            <Typography variant='h6' sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 24, verticalAlign: 'middle', color: '#ff9800' }}>schedule</span>
+              Late
+            </Typography>
+            {isLoading ? <CircularProgress size={24} sx={{ mt: 1 }} /> : (
+              <Typography variant="h3" sx={{ mt: 1, fontSize: { xs: '1.5rem', md: '2.5rem' } }}>{stats?.totalLate || 0}</Typography>
+            )}
+          </MainCard>
+        </Grid>
+        <Grid item xs={12} sm={4}>
+          <MainCard border={false} shadow={theme.customShadows.z1} sx={{ height: '100%' }}>
+            <Typography variant='h6' sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 24, verticalAlign: 'middle', color: '#2196f3' }}>info</span>
+              Excused
+            </Typography>
+            {isLoading ? <CircularProgress size={24} sx={{ mt: 1 }} /> : (
+              <Typography variant="h3" sx={{ mt: 1, fontSize: { xs: '1.5rem', md: '2.5rem' } }}>{stats?.totalExcused || 0}</Typography>
+            )}
+          </MainCard>
+        </Grid>
+      </Grid>
 
-      {/* ########## CARD DATA TABLE ########## */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(240px,1fr))', gap:24, marginBottom:24 }}>
-        <MainCard border={false} shadow={theme.customShadows.z1} sx={{ height:'150%' }}>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      {/* Attendance Table */}
+      {/* Attendance Table */}
+      <MainCard border={false} shadow={theme.customShadows.z1} sx={{ mb: 3 }}>
+        {/* Filter Bar */}
+        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { xs: 'stretch', sm: 'center' }, gap: 2, mb: 3 }}>
+          <TextField
+            label="Date"
+            type="date"
+            size="small"
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            fullWidth
+            sx={{ maxWidth: { xs: '100%', sm: 220 } }}
+          />
+          <TextField
+            select
+            label="Role"
+            size="small"
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value)}
+            SelectProps={{ native: true }}
+            fullWidth
+            sx={{ maxWidth: { xs: '100%', sm: 200 } }}
+          >
+            <option value="all">All Roles</option>
+            <option value="participant">Participants</option>
+            <option value="supervisor">Supervisors</option>
+          </TextField>
+        </Box>
+
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            Error loading attendances: {(error as Error).message}
+          </Alert>
+        )}
+
+        {/* Data Table */}
+        <Box sx={{ overflowX: 'auto', minHeight: 300 }}>
+          {isLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 300 }}>
+              <CircularProgress />
+            </Box>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 650 }}>
               <thead>
                 <tr style={{ background: '#f5f5f5' }}>
-                  <th style={{ padding: 8, textAlign: 'left' }}>Name</th>
-                  <th style={{ padding: 8, textAlign: 'left' }}>Units</th>
-                  <th style={{ padding: 8, textAlign: 'left' }}>Date</th>
-                  <th style={{ padding: 8, textAlign: 'left' }}>Check-in</th>
-                  <th style={{ padding: 8, textAlign: 'left' }}>Activity</th>
-                  <th style={{ padding: 8, textAlign: 'left' }}>Check-out</th>
-                  <th style={{ padding: 8, textAlign: 'left' }}>Status</th>
+                  <th style={{ padding: 16, textAlign: 'left' }}>Name</th>
+                  <th style={{ padding: 16, textAlign: 'left' }}>Unit</th>
+                  <th style={{ padding: 16, textAlign: 'left' }}>Date</th>
+                  <th style={{ padding: 16, textAlign: 'left' }}>Check-in</th>
+                  <th style={{ padding: 16, textAlign: 'left' }}>Activity</th>
+                  <th style={{ padding: 16, textAlign: 'left' }}>Check-out</th>
+                  <th style={{ padding: 16, textAlign: 'left' }}>Status</th>
                 </tr>
               </thead>
               <tbody>
-                {/* Contoh data statis, bisa diganti dengan map dari data */}
-                <tr>
-                  <td style={{ padding: 8 }}>John Doe</td>
-                  <td style={{ padding: 8 }}>Unit A</td>
-                  <td style={{ padding: 8 }}>2025-12-17</td>
-                  <td style={{ padding: 8 }}>08:00</td>
-                  <td style={{ padding: 8 }}>Meeting</td>
-                  <td style={{ padding: 8 }}>17:00</td>
-                  <td style={{ padding: 8 }}>Present</td>
-                </tr>
-                <tr>
-                  <td style={{ padding: 8 }}>Jane Smith</td>
-                  <td style={{ padding: 8 }}>Unit B</td>
-                  <td style={{ padding: 8 }}>2025-12-17</td>
-                  <td style={{ padding: 8 }}>08:15</td>
-                  <td style={{ padding: 8 }}>Workshop</td>
-                  <td style={{ padding: 8 }}>16:45</td>
-                  <td style={{ padding: 8 }}>Present</td>
-                </tr>
+                {attendancesData?.attendances && attendancesData.attendances.length > 0 ? (
+                  attendancesData.attendances.map((attendance) => (
+                    <tr key={attendance.id} style={{ borderBottom: '1px solid #eee' }}>
+                      <td style={{ padding: 16 }}>{attendance.user?.name || '-'}</td>
+                      <td style={{ padding: 16 }}>{attendance.user?.unit?.name || '-'}</td>
+                      <td style={{ padding: 16 }}>{attendance.date}</td>
+                      <td style={{ padding: 16 }}>{attendance.check_in_time || '-'}</td>
+                      <td style={{ padding: 16, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {attendance.activity_description || '-'}
+                      </td>
+                      <td style={{ padding: 16 }}>{attendance.check_out_time || '-'}</td>
+                      <td style={{ padding: 16 }}>
+                        <span style={{
+                          padding: '4px 8px',
+                          borderRadius: 4,
+                          fontSize: '0.75rem',
+                          background:
+                            attendance.status === 'present' ? '#4caf50' :
+                              attendance.status === 'late' ? '#ff9800' :
+                                attendance.status === 'excused' ? '#2196f3' : '#f44336',
+                          color: 'white'
+                        }}>
+                          {attendance.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={7} style={{ padding: 24, textAlign: 'center' }}>
+                      No attendance records found
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
-          </div>
-        </MainCard>
-      </div>
-        </MainCard>
-      </div>
+          )}
+        </Box>
+      </MainCard>
     </>
   );
 }

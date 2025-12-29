@@ -468,29 +468,29 @@ const ManagementDataView = () => {
         />
       </MainCard>
 
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6}>
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Grid item xs={6} sm={6}>
           <MainCard
-            border={selectedTable === 'users' ? '2px solid #1976d2' : false}
+            border={selectedTable === 'users' ? `2px solid ${theme.palette.primary.main}` : false}
             shadow={theme.customShadows.z1}
-            sx={{ height: '100%', cursor: 'pointer', background: selectedTable === 'users' ? '#e3f2fd' : undefined }}
+            sx={{ height: '100%', cursor: 'pointer', background: selectedTable === 'users' ? theme.palette.primary.lighter : undefined, p: { xs: 0.5, md: 2 } }}
             onClick={() => setSelectedTable('users')}
           >
-            <Typography variant='h3' sx={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: { xs: '1.5rem', md: '2rem' } }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 32, verticalAlign: 'middle' }}>groups</span>
+            <Typography variant='h3' sx={{ display: 'flex', alignItems: 'center', gap: 1, fontSize: { xs: '1rem', md: '1.5rem' } }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 24 }}>groups</span>
               Users
             </Typography>
           </MainCard>
         </Grid>
-        <Grid item xs={12} sm={6}>
+        <Grid item xs={6} sm={6}>
           <MainCard
-            border={selectedTable === 'units' ? '2px solid #1976d2' : false}
+            border={selectedTable === 'units' ? `2px solid ${theme.palette.primary.main}` : false}
             shadow={theme.customShadows.z1}
-            sx={{ height: '100%', cursor: 'pointer', background: selectedTable === 'units' ? '#e3f2fd' : undefined }}
+            sx={{ height: '100%', cursor: 'pointer', background: selectedTable === 'units' ? theme.palette.primary.lighter : undefined, p: { xs: 0.5, md: 2 } }}
             onClick={() => setSelectedTable('units')}
           >
-            <Typography variant='h3' sx={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: { xs: '1.5rem', md: '2rem' } }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 32, verticalAlign: 'middle' }}>apartment</span>
+            <Typography variant='h3' sx={{ display: 'flex', alignItems: 'center', gap: 1, fontSize: { xs: '1rem', md: '1.5rem' } }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 24 }}>apartment</span>
               Units
             </Typography>
           </MainCard>

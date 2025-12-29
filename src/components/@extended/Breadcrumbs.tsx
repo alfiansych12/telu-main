@@ -15,7 +15,7 @@ import MuiBreadcrumbs from '@mui/material/Breadcrumbs';
 
 // project import
 import MainCard from 'components/MainCard';
-import navigation from 'menu-items';
+import { allMenuGroups } from 'menu-items';
 
 // ASSETS
 import { ArrowRight2, Buildings2, Home3 } from 'iconsax-react';
@@ -92,7 +92,7 @@ const Breadcrumbs = ({
   }
 
   useEffect(() => {
-    navigation?.items?.map((menu: NavItemType) => {
+    allMenuGroups?.map((menu: NavItemType) => {
       if (menu.type && menu.type === 'group') {
         if (menu?.url && menu.url === customLocation) {
           setMain(menu);
@@ -145,7 +145,7 @@ const Breadcrumbs = ({
         <Typography
           variant="body1"
           sx={{ textDecoration: 'none', cursor: 'pointer' }}
-          color={window.location.pathname === main.url ? 'text.secondary' : 'text.primary'}
+          color={typeof window !== 'undefined' && window.location.pathname === main.url ? 'text.secondary' : 'text.primary'}
         >
           {icons && <CollapseIcon style={iconSX} />}
           {main.title}

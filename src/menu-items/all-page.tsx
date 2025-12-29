@@ -12,93 +12,100 @@ const icons = {
   samplePage: DocumentCode2
 };
 
-// ==============================|| MENU ITEMS - SAMPLE PAGE ||============================== //
+// ==============================|| MENU ITEMS - ADMIN MENU ||============================== //
 
-const allPages: NavItemType = {
-  id: 'Admin-menu',
-  title: <FormattedMessage id="Menu" />,
+const adminMenu: NavItemType = {
+  id: 'admin-menu',
+  title: <FormattedMessage id="Menu Admin" />,
   type: 'group',
   children: [
-      {
-      id: 'Profileadmin',
-      title: <FormattedMessage id="Admin - Profile" />,
-      type: 'item',
-      icon: icons.samplePage,
-      url: '/Profileadmin'
-      // access: ['BD', 'SA']  //contoh untuk menambahkan item ke navbar
-    },
-
     {
       id: 'dashboard',
-      title: <FormattedMessage id="Admin - Dashboard" />,
+      title: <FormattedMessage id="Dashboard" />,
       type: 'item',
       icon: icons.samplePage,
       url: '/dashboard'
-      // access: ['BD', 'SA']  //contoh untuk menambahkan item ke navbar
     },
     {
       id: 'Management Data',
-      title: <FormattedMessage id="Admin - Management Data" />,
+      title: <FormattedMessage id="Management Data" />,
       type: 'item',
       icon: icons.samplePage,
       url: '/ManagementData'
-      // access: ['BD', 'SA']  //contoh untuk menambahkan item ke navbar
     },
     {
       id: 'Reports Monitoring',
-      title: <FormattedMessage id="Admin -Reports Monitoring" />,
+      title: <FormattedMessage id="Reports Monitoring" />,
       type: 'item',
       icon: icons.samplePage,
       url: '/ReportsMonitoring'
-      // access: ['BD', 'SA']  //contoh untuk menambahkan item ke navbar
+    },
+    {
+      id: 'Profileadmin',
+      title: <FormattedMessage id="Profile" />,
+      type: 'item',
+      icon: icons.samplePage,
+      url: '/Profileadmin'
     }
-    // ,    {
-    //   id: 'Units Management',
-    //   title: <FormattedMessage id="Units Management" />,
-    //   type: 'item',
-    //   icon: icons.samplePage,
-    //   url: '/UnitsManagement'
-    //   // access: ['BD', 'SA']  //contoh untuk menambahkan item ke navbar
-    // }
-      ,{
-          id: 'Dashboarduser',
-          title: <FormattedMessage id="User - Dashboard" />, 
-          type: 'item',
-          icon: icons.samplePage,
-          url: '/dashboarduser'
-        },
-
-        {
-          id: 'Profiluser',
-          title: <FormattedMessage id="User - Profile" />, 
-          type: 'item',
-          icon: icons.samplePage,
-          url: '/Profilepart'
-        },
-        {
-          id: 'Dashboardsuper',
-          title: <FormattedMessage id="Supervisor - Dashboard" />, 
-          type: 'item',
-          icon: icons.samplePage,
-          url: '/dashboardsuper'
-        },
-
-        {
-          id: 'Monitoringsuper',
-          title: <FormattedMessage id="Supervisor - Monitoring" />, 
-          type: 'item',
-          icon: icons.samplePage,
-          url: '/Monitoringsuper'
-        },
-
-          {
-          id: 'Profilesuper',
-          title: <FormattedMessage id="Supervisor - Profile" />, 
-          type: 'item',
-          icon: icons.samplePage,
-          url: '/Profilesuper'
-        },
   ]
 };
 
-export default allPages;
+// ==============================|| MENU ITEMS - USER MENU ||============================== //
+
+const userMenu: NavItemType = {
+  id: 'user-menu',
+  title: <FormattedMessage id="Menu Users" />,
+  type: 'group',
+  children: [
+    {
+      id: 'Dashboarduser',
+      title: <FormattedMessage id="Dashboard" />,
+      type: 'item',
+      icon: icons.samplePage,
+      url: '/dashboarduser'
+    },
+    {
+      id: 'Profiluser',
+      title: <FormattedMessage id="Profile" />,
+      type: 'item',
+      icon: icons.samplePage,
+      url: '/Profilepart'
+    }
+  ]
+};
+
+// ==============================|| MENU ITEMS - SUPERVISOR MENU ||============================== //
+
+const supervisorMenu: NavItemType = {
+  id: 'supervisor-menu',
+  title: <FormattedMessage id="Menu Supervisors" />,
+  type: 'group',
+  children: [
+    {
+      id: 'Dashboardsuper',
+      title: <FormattedMessage id="Dashboard" />,
+      type: 'item',
+      icon: icons.samplePage,
+      url: '/dashboardsuper'
+    },
+    {
+      id: 'Monitoringsuper',
+      title: <FormattedMessage id="Monitoring" />,
+      type: 'item',
+      icon: icons.samplePage,
+      url: '/Monitoringsuper'
+    },
+    {
+      id: 'Profilesuper',
+      title: <FormattedMessage id="Profile" />,
+      type: 'item',
+      icon: icons.samplePage,
+      url: '/Profilesuper'
+    }
+  ]
+};
+
+// ==============================|| EXPORT ALL MENUS ||============================== //
+
+export { adminMenu, userMenu, supervisorMenu };
+export default adminMenu;

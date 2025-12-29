@@ -57,37 +57,38 @@ const ReportMonitoringView = () => {
 
       {/* Stats Cards */}
       {/* Stats Cards */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={4}>
-          <MainCard border={false} shadow={theme.customShadows.z1} sx={{ height: '100%' }}>
-            <Typography variant='h6' sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 24, verticalAlign: 'middle', color: '#4caf50' }}>check_circle</span>
+      {/* Stats Cards */}
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Grid item xs={4} sm={4}>
+          <MainCard border={false} shadow={theme.customShadows.z1} sx={{ height: '100%', p: { xs: 0.5, md: 2 } }}>
+            <Typography variant='h6' sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontSize: { xs: '0.65rem', sm: '0.9rem', md: '1.25rem' } }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#4caf50' }}>check_circle</span>
               Present
             </Typography>
-            {isLoading ? <CircularProgress size={24} sx={{ mt: 1 }} /> : (
-              <Typography variant="h3" sx={{ mt: 1, fontSize: { xs: '1.5rem', md: '2.5rem' } }}>{stats?.totalPresent || 0}</Typography>
+            {isLoading ? <CircularProgress size={16} sx={{ mt: 1 }} /> : (
+              <Typography variant="h3" sx={{ mt: 0.5, fontSize: { xs: '1.2rem', sm: '1.5rem', md: '2.5rem' }, fontWeight: 700 }}>{stats?.totalPresent || 0}</Typography>
             )}
           </MainCard>
         </Grid>
-        <Grid item xs={12} sm={4}>
-          <MainCard border={false} shadow={theme.customShadows.z1} sx={{ height: '100%' }}>
-            <Typography variant='h6' sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 24, verticalAlign: 'middle', color: '#ff9800' }}>schedule</span>
+        <Grid item xs={4} sm={4}>
+          <MainCard border={false} shadow={theme.customShadows.z1} sx={{ height: '100%', p: { xs: 0.5, md: 2 } }}>
+            <Typography variant='h6' sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontSize: { xs: '0.65rem', sm: '0.9rem', md: '1.25rem' } }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#ff9800' }}>schedule</span>
               Late
             </Typography>
-            {isLoading ? <CircularProgress size={24} sx={{ mt: 1 }} /> : (
-              <Typography variant="h3" sx={{ mt: 1, fontSize: { xs: '1.5rem', md: '2.5rem' } }}>{stats?.totalLate || 0}</Typography>
+            {isLoading ? <CircularProgress size={16} sx={{ mt: 1 }} /> : (
+              <Typography variant="h3" sx={{ mt: 0.5, fontSize: { xs: '1.2rem', sm: '1.5rem', md: '2.5rem' }, fontWeight: 700 }}>{stats?.totalLate || 0}</Typography>
             )}
           </MainCard>
         </Grid>
-        <Grid item xs={12} sm={4}>
-          <MainCard border={false} shadow={theme.customShadows.z1} sx={{ height: '100%' }}>
-            <Typography variant='h6' sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 24, verticalAlign: 'middle', color: '#2196f3' }}>info</span>
+        <Grid item xs={4} sm={4}>
+          <MainCard border={false} shadow={theme.customShadows.z1} sx={{ height: '100%', p: { xs: 0.5, md: 2 } }}>
+            <Typography variant='h6' sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontSize: { xs: '0.65rem', sm: '0.9rem', md: '1.25rem' } }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#2196f3' }}>info</span>
               Excused
             </Typography>
-            {isLoading ? <CircularProgress size={24} sx={{ mt: 1 }} /> : (
-              <Typography variant="h3" sx={{ mt: 1, fontSize: { xs: '1.5rem', md: '2.5rem' } }}>{stats?.totalExcused || 0}</Typography>
+            {isLoading ? <CircularProgress size={16} sx={{ mt: 1 }} /> : (
+              <Typography variant="h3" sx={{ mt: 0.5, fontSize: { xs: '1.2rem', sm: '1.5rem', md: '2.5rem' }, fontWeight: 700 }}>{stats?.totalExcused || 0}</Typography>
             )}
           </MainCard>
         </Grid>

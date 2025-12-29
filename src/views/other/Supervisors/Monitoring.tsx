@@ -14,7 +14,6 @@ const attendanceData = [
 	{ id: 3, name: 'Bob Lee', checkIn: '-', checkOut: '-', activity: '-', status: 'Absent' },
 ];
 const statusOptions = ['All', 'Present', 'Absent'];
-
 const Monitoring = () => {
 	const [date, setDate] = useState(() => {
 		const today = new Date();

@@ -19,6 +19,15 @@ const allPages: NavItemType = {
   title: <FormattedMessage id="Menu" />,
   type: 'group',
   children: [
+      {
+      id: 'Profileadmin',
+      title: <FormattedMessage id="Admin - Profile" />,
+      type: 'item',
+      icon: icons.samplePage,
+      url: '/Profileadmin'
+      // access: ['BD', 'SA']  //contoh untuk menambahkan item ke navbar
+    },
+
     {
       id: 'dashboard',
       title: <FormattedMessage id="Admin - Dashboard" />,

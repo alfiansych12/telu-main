@@ -11,7 +11,7 @@ export default function ProfilePage() {
   const [confirmPassword, setConfirmPassword] = useState('')
 
   const profileInfo = {
-    name: 'Michael Johnson',
+    name: 'jordan',
     title: 'Senior IT Supervisor',
     email: 'michael.jhonson@eniversity.com',
     phone: '0823281729',
@@ -33,7 +33,7 @@ export default function ProfilePage() {
     <>
       <MainCard border={false} sx={{ mb: 3, p: 0 }}>
         <CustomBreadcrumbs
-          items={['Dashboard', 'Report']}
+          items={['Dashboard', 'Profile']}
           showDate
           showExport
         />
@@ -43,7 +43,7 @@ export default function ProfilePage() {
         <h1 className="text-3xl font-bold text-gray-800">Interface/Puti</h1>
         <div className="flex items-center space-x-4">
           <div className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full">
-            Dashboard
+            Profile
           </div>
         </div>
       </div>

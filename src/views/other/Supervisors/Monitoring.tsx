@@ -35,10 +35,10 @@ const Monitoring = () => {
 		<>
 			<MainCard border={false} shadow={theme.customShadows.z1} sx={{ mb: 3, p: 0 }}>
 				<CustomBreadcrumbs
-					items={['Dashboard', 'Report']}
+					items={['Dashboard', 'Monitoring']}
 					showDate
 					showExport
-				/>
+				/> 
 			</MainCard>
 			<Box>
 				{/* Card Filter Date & Status */}

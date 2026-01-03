@@ -253,7 +253,7 @@ const DashboardView = () => {
       <Grid container spacing={2} sx={{ mb: 3 }}>
         {[
           { label: 'Total Users', value: stats?.totalParticipants, icon: 'groups', color: theme.palette.primary.main },
-          { label: 'Total SV', value: stats?.totalSupervisors, icon: 'supervisor_account', color: theme.palette.secondary.main },
+          { label: 'Total Supervisors', value: stats?.totalSupervisors, icon: 'supervisor_account', color: theme.palette.secondary.main },
           { label: 'Total Units', value: stats?.totalUnits, icon: 'apartment', color: theme.palette.warning.main }
         ].map((item, index) => (
           <Grid item xs={4} sm={4} key={item.label}>

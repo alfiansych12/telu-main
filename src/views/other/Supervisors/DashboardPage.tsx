@@ -87,7 +87,7 @@ const DashboardView = () => {
     <>
       <MainCard border={false} shadow={theme.customShadows.z1} sx={{ mb: 3, p: 0 }}>
         <CustomBreadcrumbs
-          items={['Dashboard', 'Report']}
+          items={['Dashboard',]}
           showDate
           showExport
         />

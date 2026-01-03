@@ -1,6 +1,6 @@
 'use client';
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+// import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 // MATERIAL - UI
@@ -15,7 +15,7 @@ import {
   DialogActions,
   CircularProgress,
   Alert,
-  IconButton,
+  // IconButton,
   Grid
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
@@ -327,12 +327,26 @@ const ManagementDataView = () => {
           <span className="material-symbols-outlined" style={{ fontSize: 28, verticalAlign: 'middle' }}>apartment</span>
           Units Management
         </Typography>
-        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2 }}>
+         <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2 }}>
+          <TextField
+            select
+            label="Role"
+            size="small"
+            value={usersRoleFilter}
+            onChange={(e) => setUsersRoleFilter(e.target.value)}
+            SelectProps={{ native: true }}
+            sx={{ minWidth: 140 }}
+          >
+            <option value="all">All Roles</option>
+            <option value="participant">Participants</option>
+            <option value="supervisor">Supervisors</option>
+            <option value="admin">Admin</option>
+          </TextField>
           <TextField
             size="small"
             placeholder="Search unit..."
-            value={unitsSearch}
-            onChange={(e) => setUnitsSearch(e.target.value)}
+            value={usersSearch}
+            onChange={(e) => setUsersSearch(e.target.value)}
             sx={{ minWidth: 200 }}
           />
           <Button

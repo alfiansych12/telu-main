@@ -49,7 +49,7 @@ const ReportMonitoringView = () => {
     <>
       <MainCard border={false} shadow={theme.customShadows.z1} sx={{ mb: 3, p: 0 }}>
         <CustomBreadcrumbs
-          items={['Dashboard', 'Report Monitoring']}
+          items={['Dashboard', 'Reports Monitoring']}
           showDate
           showExport
         />
@@ -123,6 +123,22 @@ const ReportMonitoringView = () => {
             <option value="participant">Participants</option>
             <option value="supervisor">Supervisors</option>
           </TextField>
+
+           <TextField
+            select
+            label="Unit"
+            size="small"
+             //value={unitFilter}
+             //onChange={(e) => setUnitFilter(e.target.value)}
+            // SelectProps={{ native: true }}
+             fullWidth
+             sx={{ maxWidth: { xs: '100%', sm: 200 } }}
+          >
+            <option value="all">All Unit</option>
+            <option value="participant">Fakultas Teknik Informatika</option>
+            <option value="supervisor">Fakultas Sistem Informasi</option>
+          </TextField>
+
         </Box>
 
         {error && (

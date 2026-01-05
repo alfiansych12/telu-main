@@ -71,7 +71,8 @@ const Breadcrumbs = ({
   ...others
 }: Props) => {
   const theme = useTheme();
-  const location = usePathname();
+  // const location = usePathname();
+  const location = '/';
   const [main, setMain] = useState<NavItemType | undefined>();
   const [item, setItem] = useState<NavItemType>();
 

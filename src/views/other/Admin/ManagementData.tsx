@@ -1,24 +1,45 @@
 'use client';
 import React, { useState } from 'react';
+import dynamic from 'next/dynamic';
 // import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 // MATERIAL - UI
-import Typography from '@mui/material/Typography';
 import {
+  Grid,
+  Typography,
+  Box,
+  CircularProgress,
+  Stack,
+  Avatar,
+  Chip,
+  Paper,
+  IconButton,
+  Tooltip,
   TextField,
   Button,
-  Box,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  CircularProgress,
   Alert,
-  // IconButton,
-  Grid
+  MenuItem,
+  Table,
+  TableHead,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableRow,
 } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
+import { useTheme, alpha } from '@mui/material/styles';
+
+// ICONS
+import {
+  Edit,
+  Trash,
+  User as UserIcon,
+  Building as BuildingIcon
+} from 'iconsax-react';
 
 // PROJECT IMPORTS
 import MainCard from 'components/MainCard';
@@ -42,10 +63,12 @@ const ManagementDataView = () => {
   // State untuk Units
   const [unitsPage, setUnitsPage] = useState(1);
   const [unitsSearch, setUnitsSearch] = useState('');
+  const [unitsStatusFilter, setUnitsStatusFilter] = useState('all');
   const [unitsPageSize, setUnitsPageSize] = useState(10);
 
   // Dialog states
   const [userDialog, setUserDialog] = useState({ open: false, mode: 'create' as 'create' | 'edit', user: null as UserWithUnit | null });
+  const [selectedRoleInDialog, setSelectedRoleInDialog] = useState<string>('participant');
   const [unitDialog, setUnitDialog] = useState({ open: false, mode: 'create' as 'create' | 'edit', unit: null as UnitWithManager | null });
   const [deleteDialog, setDeleteDialog] = useState({ open: false, type: '' as 'user' | 'unit', id: '' });
 
@@ -60,14 +83,27 @@ const ManagementDataView = () => {
     }),
   });
 
-  // Fetch Units
+  // Fetch Units for page
   const { data: unitsData, isLoading: unitsLoading, error: unitsError } = useQuery({
-    queryKey: ['units', unitsPage, unitsSearch, unitsPageSize],
+    queryKey: ['units', unitsPage, unitsSearch, unitsStatusFilter, unitsPageSize],
     queryFn: () => getUnits({
       page: unitsPage,
       pageSize: unitsPageSize,
       search: unitsSearch || undefined,
+      status: unitsStatusFilter !== 'all' ? unitsStatusFilter as any : undefined,
     }),
+  });
+
+  // Fetch All Units for Selectors (no pagination)
+  const { data: allUnitsData } = useQuery({
+    queryKey: ['units', 'all-for-selector'],
+    queryFn: () => getUnits({ pageSize: 100 }),
+  });
+
+  // Fetch All Supervisors for Selectors
+  const { data: allSupervisorsData } = useQuery({
+    queryKey: ['users', 'supervisors-for-selector'],
+    queryFn: () => getUsers({ role: 'supervisor', pageSize: 100 }),
   });
 
   // Mutations for Users
@@ -126,12 +162,17 @@ const ManagementDataView = () => {
     const formData = new FormData(e.currentTarget);
     const data = {
       email: formData.get('email') as string,
+      password: formData.get('password') as string || null,
       name: formData.get('name') as string,
       role: formData.get('role') as any,
+      unit_id: formData.get('unit_id') as string || null,
+      supervisor_id: formData.get('supervisor_id') as string || null,
       status: (formData.get('status') || 'active') as any,
       internship_start: formData.get('internship_start') as string || null,
       internship_end: formData.get('internship_end') as string || null,
     };
+
+    console.log('Attempting to create/update user with data:', data);
 
     if (userDialog.mode === 'create') {
       createUserMutation.mutate(data);
@@ -147,6 +188,7 @@ const ManagementDataView = () => {
     const data = {
       name: formData.get('name') as string,
       department: formData.get('department') as string,
+      manager_id: formData.get('manager_id') as string || null,
       status: (formData.get('status') || 'active') as any,
     };
 
@@ -181,13 +223,23 @@ const ManagementDataView = () => {
             size="small"
             value={usersRoleFilter}
             onChange={(e) => setUsersRoleFilter(e.target.value)}
-            SelectProps={{ native: true }}
-            sx={{ minWidth: 140 }}
+            sx={{
+              minWidth: 160,
+              '& .MuiSelect-select': { display: 'flex', alignItems: 'center', gap: 1 }
+            }}
           >
-            <option value="all">All Roles</option>
-            <option value="participant">Participants</option>
-            <option value="supervisor">Supervisors</option>
-            <option value="admin">Admin</option>
+            <MenuItem value="all">
+              <span className="material-symbols-outlined" style={{ fontSize: 18, marginRight: 8 }}>list</span>
+              All Roles
+            </MenuItem>
+            <MenuItem value="participant">
+              <span className="material-symbols-outlined" style={{ fontSize: 18, marginRight: 8, color: theme.palette.success.main }}>person</span>
+              Participants
+            </MenuItem>
+            <MenuItem value="supervisor">
+              <span className="material-symbols-outlined" style={{ fontSize: 18, marginRight: 8, color: theme.palette.warning.main }}>manage_accounts</span>
+              Supervisors
+            </MenuItem>
           </TextField>
           <TextField
             size="small"
@@ -198,7 +250,10 @@ const ManagementDataView = () => {
           />
           <Button
             variant="contained"
-            onClick={() => setUserDialog({ open: true, mode: 'create', user: null })}
+            onClick={() => {
+              setUserDialog({ open: true, mode: 'create', user: null });
+              setSelectedRoleInDialog('participant');
+            }}
             startIcon={<span className="material-symbols-outlined">add</span>}
           >
             Add User
@@ -212,75 +267,129 @@ const ManagementDataView = () => {
         </Alert>
       )}
 
-      <Box sx={{ overflowX: 'auto', minHeight: 400, position: 'relative' }}>
+      <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 2 }}>
         {usersLoading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
-            <CircularProgress />
+            <CircularProgress size={30} />
           </Box>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: '#f5f5f5' }}>
-                <th style={{ padding: 8, textAlign: 'left' }}>Name</th>
-                <th style={{ padding: 8, textAlign: 'left' }}>Email</th>
-                <th style={{ padding: 8, textAlign: 'left' }}>Role</th>
-                <th style={{ padding: 8, textAlign: 'left' }}>Unit</th>
-                <th style={{ padding: 8, textAlign: 'left' }}>Status</th>
-                <th style={{ padding: 8, textAlign: 'left' }}>Action</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table sx={{ minWidth: 700 }}>
+            <TableHead sx={{ bgcolor: theme.palette.grey[50] }}>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 600 }}>User Profile</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Username / Email</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>System Role</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Assigned Unit</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Mentor/Lead</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Current Status</TableCell>
+                <TableCell align="center" sx={{ fontWeight: 600 }}>Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
               {usersData?.users && usersData.users.length > 0 ? (
                 usersData.users.map((user) => (
-                  <tr key={user.id}>
-                    <td style={{ padding: 8 }}>{user.name}</td>
-                    <td style={{ padding: 8 }}>{user.email}</td>
-                    <td style={{ padding: 8 }}>{user.role}</td>
-                    <td style={{ padding: 8 }}>{user.unit?.name || '-'}</td>
-                    <td style={{ padding: 8 }}>
-                      <span style={{
-                        padding: '4px 8px',
-                        borderRadius: 4,
-                        fontSize: '0.75rem',
-                        background: user.status === 'active' ? '#4caf50' : '#f44336',
-                        color: 'white'
-                      }}>
-                        {user.status}
-                      </span>
-                    </td>
-                    <td style={{ padding: 8 }}>
-                      <Button
+                  <TableRow key={user.id} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                    <TableCell>
+                      <Stack direction="row" spacing={1.5} alignItems="center">
+                        <Avatar sx={{
+                          width: 40,
+                          height: 40,
+                          fontSize: '0.9rem',
+                          fontWeight: 600,
+                          bgcolor: alpha(theme.palette.primary.main, 0.1),
+                          color: theme.palette.primary.main,
+                          border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`
+                        }}>
+                          {user.name.charAt(0).toUpperCase()}
+                        </Avatar>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{user.name}</Typography>
+                      </Stack>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" color="textSecondary" sx={{ fontWeight: 500 }}>{user.email}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={user.role}
                         size="small"
                         variant="outlined"
-                        sx={{ mr: 1 }}
-                        onClick={() => setUserDialog({ open: true, mode: 'edit', user })}
-                        startIcon={<span className="material-symbols-outlined" style={{ fontSize: 18 }}>edit</span>}
-                      >
-                        Update
-                      </Button>
-                      <Button
+                        sx={{ textTransform: 'capitalize', fontWeight: 500 }}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <BuildingIcon size={14} variant="Bold" style={{ opacity: 0.5 }} />
+                        {user.unit?.name || 'Unassigned'}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      {user.role === 'participant' ? (
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <Avatar sx={{ width: 22, height: 22, fontSize: '0.6rem', bgcolor: theme.palette.warning.light }}>
+                            {user.supervisor?.name?.charAt(0) || '?'}
+                          </Avatar>
+                          <Typography variant="body2">{user.supervisor?.name || 'Not Paired'}</Typography>
+                        </Stack>
+                      ) : (
+                        <Typography variant="caption" color="textSecondary">N/A</Typography>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={user.status}
                         size="small"
-                        color="error"
-                        variant="outlined"
-                        onClick={() => setDeleteDialog({ open: true, type: 'user', id: user.id })}
-                        startIcon={<span className="material-symbols-outlined" style={{ fontSize: 18 }}>delete</span>}
-                      >
-                        Hapus
-                      </Button>
-                    </td>
-                  </tr>
+                        color={user.status === 'active' ? 'success' : 'error'}
+                        variant="filled"
+                        sx={{
+                          px: 1,
+                          height: 24,
+                          fontSize: '0.7rem',
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                          borderRadius: 1
+                        }}
+                      />
+                    </TableCell>
+                    <TableCell align="center">
+                      <Stack direction="row" spacing={1} justifyContent="center">
+                        <Tooltip title="Edit Profile">
+                          <IconButton
+                            size="small"
+                            onClick={() => {
+                              setUserDialog({ open: true, mode: 'edit', user });
+                              setSelectedRoleInDialog(user.role);
+                            }}
+                            sx={{ color: theme.palette.primary.main, bgcolor: alpha(theme.palette.primary.main, 0.05) }}
+                          >
+                            <Edit size={18} />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Delete Account">
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => setDeleteDialog({ open: true, type: 'user', id: user.id })}
+                            sx={{ bgcolor: alpha(theme.palette.error.main, 0.05) }}
+                          >
+                            <Trash size={18} />
+                          </IconButton>
+                        </Tooltip>
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
                 ))
               ) : (
-                <tr>
-                  <td colSpan={6} style={{ padding: 24, textAlign: 'center' }}>
-                    No users found
-                  </td>
-                </tr>
+                <TableRow>
+                  <TableCell colSpan={6} align="center" sx={{ py: 8 }}>
+                    <UserIcon size={48} variant="Bulk" style={{ opacity: 0.2 }} />
+                    <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>No user data available</Typography>
+                  </TableCell>
+                </TableRow>
               )}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         )}
-      </Box>
+      </TableContainer>
 
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', mt: 2 }}>
         <Typography variant="body2" sx={{ mr: 1 }}>Rows per page:</Typography>
@@ -289,12 +398,11 @@ const ManagementDataView = () => {
           size="small"
           value={usersPageSize}
           onChange={(e) => setUsersPageSize(Number(e.target.value))}
-          SelectProps={{ native: true }}
           sx={{ width: 80 }}
         >
-          <option value={5}>5</option>
-          <option value={10}>10</option>
-          <option value={25}>25</option>
+          <MenuItem value={5}>5</MenuItem>
+          <MenuItem value={10}>10</MenuItem>
+          <MenuItem value={25}>25</MenuItem>
         </TextField>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 2 }}>
           <Button
@@ -327,26 +435,36 @@ const ManagementDataView = () => {
           <span className="material-symbols-outlined" style={{ fontSize: 28, verticalAlign: 'middle' }}>apartment</span>
           Units Management
         </Typography>
-         <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2 }}>
+        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2 }}>
           <TextField
             select
-            label="Role"
+            label="Status"
             size="small"
-            value={usersRoleFilter}
-            onChange={(e) => setUsersRoleFilter(e.target.value)}
-            SelectProps={{ native: true }}
-            sx={{ minWidth: 140 }}
+            value={unitsStatusFilter}
+            onChange={(e) => setUnitsStatusFilter(e.target.value)}
+            sx={{
+              minWidth: 160,
+              '& .MuiSelect-select': { display: 'flex', alignItems: 'center', gap: 1 }
+            }}
           >
-            <option value="all">All Roles</option>
-            <option value="participant">Participants</option>
-            <option value="supervisor">Supervisors</option>
-            <option value="admin">Admin</option>
+            <MenuItem value="all">
+              <span className="material-symbols-outlined" style={{ fontSize: 18, marginRight: 8 }}>list</span>
+              All Status
+            </MenuItem>
+            <MenuItem value="active">
+              <span className="material-symbols-outlined" style={{ fontSize: 18, marginRight: 8, color: theme.palette.success.main }}>check_circle</span>
+              Active
+            </MenuItem>
+            <MenuItem value="inactive">
+              <span className="material-symbols-outlined" style={{ fontSize: 18, marginRight: 8, color: theme.palette.error.main }}>cancel</span>
+              Inactive
+            </MenuItem>
           </TextField>
           <TextField
             size="small"
             placeholder="Search unit..."
-            value={usersSearch}
-            onChange={(e) => setUsersSearch(e.target.value)}
+            value={unitsSearch}
+            onChange={(e) => setUnitsSearch(e.target.value)}
             sx={{ minWidth: 200 }}
           />
           <Button
@@ -365,75 +483,117 @@ const ManagementDataView = () => {
         </Alert>
       )}
 
-      <Box sx={{ overflowX: 'auto', minHeight: 400, position: 'relative' }}>
+      <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 2 }}>
         {unitsLoading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
-            <CircularProgress />
+            <CircularProgress size={30} />
           </Box>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: '#f5f5f5' }}>
-                <th style={{ padding: 8, textAlign: 'left' }}>Unit Name</th>
-                <th style={{ padding: 8, textAlign: 'left' }}>Department</th>
-                <th style={{ padding: 8, textAlign: 'left' }}>Manager</th>
-                <th style={{ padding: 8, textAlign: 'left' }}>Employees</th>
-                <th style={{ padding: 8, textAlign: 'left' }}>Status</th>
-                <th style={{ padding: 8, textAlign: 'left' }}>Action</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table sx={{ minWidth: 700 }}>
+            <TableHead sx={{ bgcolor: theme.palette.grey[50] }}>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 600 }}>Unit Information</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Department</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Manager</TableCell>
+                <TableCell align="center" sx={{ fontWeight: 600 }}>Employee Count</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                <TableCell align="center" sx={{ fontWeight: 600 }}>Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
               {unitsData?.units && unitsData.units.length > 0 ? (
                 unitsData.units.map((unit) => (
-                  <tr key={unit.id}>
-                    <td style={{ padding: 8 }}>{unit.name}</td>
-                    <td style={{ padding: 8 }}>{unit.department}</td>
-                    <td style={{ padding: 8 }}>{unit.manager?.name || '-'}</td>
-                    <td style={{ padding: 8 }}>{unit.employee_count || 0}</td>
-                    <td style={{ padding: 8 }}>
-                      <span style={{
-                        padding: '4px 8px',
-                        borderRadius: 4,
-                        fontSize: '0.75rem',
-                        background: unit.status === 'active' ? '#4caf50' : '#f44336',
-                        color: 'white'
-                      }}>
-                        {unit.status}
-                      </span>
-                    </td>
-                    <td style={{ padding: 8 }}>
-                      <Button
+                  <TableRow key={unit.id} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                    <TableCell>
+                      <Stack direction="row" spacing={1.5} alignItems="center">
+                        <Box sx={{
+                          width: 36,
+                          height: 36,
+                          borderRadius: 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          bgcolor: alpha(theme.palette.primary.main, 0.1),
+                          color: theme.palette.primary.main
+                        }}>
+                          <BuildingIcon variant="Bulk" size={20} />
+                        </Box>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{unit.name}</Typography>
+                      </Stack>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" color="textSecondary">{unit.department}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Avatar sx={{ width: 24, height: 24, fontSize: '0.65rem' }}>
+                          {unit.manager?.name.charAt(0)}
+                        </Avatar>
+                        <Typography variant="body2">{unit.manager?.name || '-'}</Typography>
+                      </Stack>
+                    </TableCell>
+                    <TableCell align="center">
+                      <Chip
+                        label={`${unit.employee_count || 0} Members`}
                         size="small"
                         variant="outlined"
-                        sx={{ mr: 1 }}
-                        onClick={() => setUnitDialog({ open: true, mode: 'edit', unit })}
-                        startIcon={<span className="material-symbols-outlined" style={{ fontSize: 18 }}>edit</span>}
-                      >
-                        Update
-                      </Button>
-                      <Button
+                        color="secondary"
+                        sx={{ fontSize: '0.7rem' }}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={unit.status}
                         size="small"
-                        color="error"
-                        variant="outlined"
-                        onClick={() => setDeleteDialog({ open: true, type: 'unit', id: unit.id })}
-                        startIcon={<span className="material-symbols-outlined" style={{ fontSize: 18 }}>delete</span>}
-                      >
-                        Hapus
-                      </Button>
-                    </td>
-                  </tr>
+                        color={unit.status === 'active' ? 'success' : 'error'}
+                        variant="filled"
+                        sx={{
+                          px: 1,
+                          height: 24,
+                          fontSize: '0.7rem',
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                          borderRadius: 1
+                        }}
+                      />
+                    </TableCell>
+                    <TableCell align="center">
+                      <Stack direction="row" spacing={1} justifyContent="center">
+                        <Tooltip title="Edit Unit">
+                          <IconButton
+                            size="small"
+                            onClick={() => setUnitDialog({ open: true, mode: 'edit', unit })}
+                            sx={{ color: theme.palette.primary.main, bgcolor: alpha(theme.palette.primary.main, 0.05) }}
+                          >
+                            <Edit size={18} />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Delete Unit">
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => setDeleteDialog({ open: true, type: 'unit', id: unit.id })}
+                            sx={{ bgcolor: alpha(theme.palette.error.main, 0.05) }}
+                          >
+                            <Trash size={18} />
+                          </IconButton>
+                        </Tooltip>
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
                 ))
               ) : (
-                <tr>
-                  <td colSpan={6} style={{ padding: 24, textAlign: 'center' }}>
-                    No units found
-                  </td>
-                </tr>
+                <TableRow>
+                  <TableCell colSpan={6} align="center" sx={{ py: 8 }}>
+                    <BuildingIcon size={48} variant="Bulk" style={{ opacity: 0.2 }} />
+                    <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>No unit data available</Typography>
+                  </TableCell>
+                </TableRow>
               )}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         )}
-      </Box>
+      </TableContainer>
 
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', mt: 2 }}>
         <Typography variant="body2" sx={{ mr: 1 }}>Rows per page:</Typography>
@@ -442,12 +602,11 @@ const ManagementDataView = () => {
           size="small"
           value={unitsPageSize}
           onChange={(e) => setUnitsPageSize(Number(e.target.value))}
-          SelectProps={{ native: true }}
           sx={{ width: 80 }}
         >
-          <option value={5}>5</option>
-          <option value={10}>10</option>
-          <option value={25}>25</option>
+          <MenuItem value={5}>5</MenuItem>
+          <MenuItem value={10}>10</MenuItem>
+          <MenuItem value={25}>25</MenuItem>
         </TextField>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 2 }}>
           <Button
@@ -482,32 +641,79 @@ const ManagementDataView = () => {
         />
       </MainCard>
 
-      <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={6} sm={6}>
-          <MainCard
-            border={selectedTable === 'users' ? `2px solid ${theme.palette.primary.main}` : false}
-            shadow={theme.customShadows.z1}
-            sx={{ height: '100%', cursor: 'pointer', background: selectedTable === 'users' ? theme.palette.primary.lighter : undefined, p: { xs: 0.5, md: 2 } }}
+      <Grid container spacing={3} sx={{ mb: 3 }}>
+        <Grid item xs={12} sm={6}>
+          <Paper
+            elevation={selectedTable === 'users' ? 8 : 0}
             onClick={() => setSelectedTable('users')}
+            sx={{
+              p: 3,
+              borderRadius: 3,
+              background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.primary.dark})`,
+              color: '#fff',
+              position: 'relative',
+              overflow: 'hidden',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              transform: selectedTable === 'users' ? 'scale(1.02)' : 'none',
+              boxShadow: selectedTable === 'users' ? `0 12px 30px ${alpha(theme.palette.primary.main, 0.4)}` : 'none',
+              opacity: selectedTable === 'users' ? 1 : 0.7,
+              '&:hover': { opacity: 1, transform: 'translateY(-4px)' }
+            }}
           >
-            <Typography variant='h3' sx={{ display: 'flex', alignItems: 'center', gap: 1, fontSize: { xs: '1rem', md: '1.5rem' } }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 24 }}>groups</span>
-              Users
-            </Typography>
-          </MainCard>
+            <Stack spacing={1}>
+              <Typography variant="h6" sx={{ opacity: 0.8, fontWeight: 500 }}>Management</Typography>
+              <Typography variant="h2" sx={{ fontWeight: 800 }}>Users</Typography>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Box sx={{ px: 1.5, py: 0.5, borderRadius: 1.5, bgcolor: 'rgba(255,255,255,0.15)', fontSize: '0.75rem', fontWeight: 600 }}>
+                  {usersData?.total || 0} Registered Members
+                </Box>
+              </Stack>
+            </Stack>
+            <span
+              className="material-symbols-outlined"
+              style={{ position: 'absolute', right: -20, bottom: -20, fontSize: 130, opacity: 0.2, color: '#fff' }}
+            >
+              groups
+            </span>
+          </Paper>
         </Grid>
-        <Grid item xs={6} sm={6}>
-          <MainCard
-            border={selectedTable === 'units' ? `2px solid ${theme.palette.primary.main}` : false}
-            shadow={theme.customShadows.z1}
-            sx={{ height: '100%', cursor: 'pointer', background: selectedTable === 'units' ? theme.palette.primary.lighter : undefined, p: { xs: 0.5, md: 2 } }}
+
+        <Grid item xs={12} sm={6}>
+          <Paper
+            elevation={selectedTable === 'units' ? 8 : 0}
             onClick={() => setSelectedTable('units')}
+            sx={{
+              p: 3,
+              borderRadius: 3,
+              background: `linear-gradient(45deg, ${theme.palette.success.main}, ${theme.palette.success.dark})`,
+              color: '#fff',
+              position: 'relative',
+              overflow: 'hidden',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              transform: selectedTable === 'units' ? 'scale(1.02)' : 'none',
+              boxShadow: selectedTable === 'units' ? `0 12px 30px ${alpha(theme.palette.success.main, 0.4)}` : 'none',
+              opacity: selectedTable === 'units' ? 1 : 0.7,
+              '&:hover': { opacity: 1, transform: 'translateY(-4px)' }
+            }}
           >
-            <Typography variant='h3' sx={{ display: 'flex', alignItems: 'center', gap: 1, fontSize: { xs: '1rem', md: '1.5rem' } }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 24 }}>apartment</span>
-              Units
-            </Typography>
-          </MainCard>
+            <Stack spacing={1}>
+              <Typography variant="h6" sx={{ opacity: 0.8, fontWeight: 500 }}>Organization</Typography>
+              <Typography variant="h2" sx={{ fontWeight: 800 }}>Units</Typography>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Box sx={{ px: 1.5, py: 0.5, borderRadius: 1.5, bgcolor: 'rgba(255,255,255,0.15)', fontSize: '0.75rem', fontWeight: 600 }}>
+                  {unitsData?.total || 0} Active Departments
+                </Box>
+              </Stack>
+            </Stack>
+            <span
+              className="material-symbols-outlined"
+              style={{ position: 'absolute', right: -20, bottom: -20, fontSize: 130, opacity: 0.2, color: '#fff' }}
+            >
+              apartment
+            </span>
+          </Paper>
         </Grid>
       </Grid>
 
@@ -519,6 +725,11 @@ const ManagementDataView = () => {
         <form onSubmit={handleUserSubmit}>
           <DialogContent>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {(createUserMutation.error || updateUserMutation.error) && (
+                <Alert severity="error">
+                  {((createUserMutation.error || updateUserMutation.error) as any)?.message || 'An error occurred while saving user data'}
+                </Alert>
+              )}
               <TextField
                 name="name"
                 label="Full Name"
@@ -528,55 +739,170 @@ const ManagementDataView = () => {
               />
               <TextField
                 name="email"
-                label="Email"
+                label="Username / Email"
                 type="email"
                 defaultValue={userDialog.user?.email}
                 required
                 fullWidth
               />
               <TextField
+                name="password"
+                label="Password"
+                type="password"
+                placeholder={userDialog.mode === 'edit' ? 'Leave blank to keep current' : 'Enter password'}
+                required={userDialog.mode === 'create'}
+                fullWidth
+              />
+              <TextField
                 name="role"
                 label="Role"
                 select
-                SelectProps={{ native: true }}
-                defaultValue={userDialog.user?.role || 'participant'}
+                value={selectedRoleInDialog}
+                onChange={(e) => setSelectedRoleInDialog(e.target.value)}
                 required
                 fullWidth
+                sx={{
+                  '& .MuiSelect-select': {
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1.5
+                  }
+                }}
               >
-                <option value="participant">Participant</option>
-                <option value="supervisor">Supervisor</option>
-                <option value="admin">Admin</option>
+                <MenuItem value="participant">
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 0.5 }}>
+                    <Box sx={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      bgcolor: theme.palette.success.lighter,
+                      color: theme.palette.success.main
+                    }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: 20 }}>person</span>
+                    </Box>
+                    <Box>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Participant</Typography>
+                      <Typography variant="caption" color="text.secondary">Default access for internship students</Typography>
+                    </Box>
+                  </Box>
+                </MenuItem>
+                <MenuItem value="supervisor">
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 0.5 }}>
+                    <Box sx={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      bgcolor: theme.palette.warning.lighter,
+                      color: theme.palette.warning.main
+                    }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: 20 }}>manage_accounts</span>
+                    </Box>
+                    <Box>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Supervisor</Typography>
+                      <Typography variant="caption" color="text.secondary">Management access for unit leads</Typography>
+                    </Box>
+                  </Box>
+                </MenuItem>
               </TextField>
               <TextField
-                name="status"
-                label="Status"
+                name="unit_id"
+                label="Assigned Unit"
                 select
-                SelectProps={{ native: true }}
-                defaultValue={userDialog.user?.status || 'active'}
-                required
+                defaultValue={userDialog.user?.unit_id || ''}
                 fullWidth
               >
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
+                <MenuItem value="">
+                  <em>None</em>
+                </MenuItem>
+                {allUnitsData?.units.map((unit) => (
+                  <MenuItem key={unit.id} value={unit.id}>
+                    {unit.name} ({unit.department})
+                  </MenuItem>
+                ))}
               </TextField>
-              <Box sx={{ display: 'flex', gap: 2 }}>
-                <TextField
-                  name="internship_start"
-                  label="Internship Start"
-                  type="date"
-                  InputLabelProps={{ shrink: true }}
-                  defaultValue={userDialog.user?.internship_start || ''}
-                  fullWidth
-                />
-                <TextField
-                  name="internship_end"
-                  label="Internship End"
-                  type="date"
-                  InputLabelProps={{ shrink: true }}
-                  defaultValue={userDialog.user?.internship_end || ''}
-                  fullWidth
-                />
-              </Box>
+
+              {selectedRoleInDialog === 'participant' && (
+                <Box sx={{ p: 2, bgcolor: alpha(theme.palette.primary.main, 0.03), borderRadius: 2, border: `1px dashed ${alpha(theme.palette.primary.main, 0.2)}` }}>
+                  <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 700, color: theme.palette.primary.main, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 18 }}>assignment_ind</span>
+                    Mentor/Supervisor Assignment
+                  </Typography>
+                  <TextField
+                    name="supervisor_id"
+                    label="Assign Supervisor"
+                    select
+                    defaultValue={userDialog.user?.supervisor_id || ''}
+                    fullWidth
+                    helperText="Mentor who will oversee this participant"
+                  >
+                    <MenuItem value="">
+                      <em>None</em>
+                    </MenuItem>
+                    {allSupervisorsData?.users.map((sup) => (
+                      <MenuItem key={sup.id} value={sup.id}>
+                        {sup.name}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                </Box>
+              )}
+
+              {selectedRoleInDialog === 'participant' && (
+                <>
+                  <TextField
+                    name="status"
+                    label="Status"
+                    select
+                    defaultValue={userDialog.user?.status || 'active'}
+                    required
+                    fullWidth
+                    sx={{
+                      '& .MuiSelect-select': {
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1.5
+                      }
+                    }}
+                  >
+                    <MenuItem value="active">
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: theme.palette.success.main }} />
+                        Active
+                      </Box>
+                    </MenuItem>
+                    <MenuItem value="inactive">
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: theme.palette.error.main }} />
+                        Inactive
+                      </Box>
+                    </MenuItem>
+                  </TextField>
+                  <Box sx={{ display: 'flex', gap: 2 }}>
+                    <TextField
+                      name="internship_start"
+                      label="Internship Start"
+                      type="date"
+                      InputLabelProps={{ shrink: true }}
+                      defaultValue={userDialog.user?.internship_start || ''}
+                      fullWidth
+                    />
+                    <TextField
+                      name="internship_end"
+                      label="Internship End"
+                      type="date"
+                      InputLabelProps={{ shrink: true }}
+                      defaultValue={userDialog.user?.internship_end || ''}
+                      fullWidth
+                    />
+                  </Box>
+                </>
+              )}
             </Box>
           </DialogContent>
           <DialogActions>
@@ -592,59 +918,142 @@ const ManagementDataView = () => {
             </Button>
           </DialogActions>
         </form>
-      </Dialog>
+      </Dialog >
 
       {/* Unit Dialog */}
       <Dialog open={unitDialog.open} onClose={() => setUnitDialog({ open: false, mode: 'create', unit: null })} maxWidth="sm" fullWidth>
-        <DialogTitle>{unitDialog.mode === 'create' ? 'Add Unit' : 'Edit Unit'}</DialogTitle>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 2.5 }}>
+          <Box sx={{
+            width: 40,
+            height: 40,
+            borderRadius: '10px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            bgcolor: theme.palette.primary.lighter,
+            color: theme.palette.primary.main
+          }}>
+            <span className="material-symbols-outlined">{unitDialog.mode === 'create' ? 'add_business' : 'edit_note'}</span>
+          </Box>
+          <Box>
+            <Typography variant="h4">{unitDialog.mode === 'create' ? 'Create New Unit' : 'Edit Unit Details'}</Typography>
+            <Typography variant="caption" color="text.secondary">Organize your teams and departments</Typography>
+          </Box>
+        </DialogTitle>
         <form onSubmit={handleUnitSubmit}>
-          <DialogContent>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <TextField
-                name="name"
-                label="Unit Name"
-                defaultValue={unitDialog.unit?.name}
-                required
-                fullWidth
-              />
-              <TextField
-                name="department"
-                label="Department"
-                defaultValue={unitDialog.unit?.department}
-                required
-                fullWidth
-              />
-              <TextField
-                name="status"
-                label="Status"
-                select
-                SelectProps={{ native: true }}
-                defaultValue={unitDialog.unit?.status || 'active'}
-                required
-                fullWidth
-              >
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </TextField>
+          <DialogContent sx={{ px: 3, pt: 1 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              {(createUnitMutation.error || updateUnitMutation.error) && (
+                <Alert severity="error" variant="outlined">
+                  {((createUnitMutation.error || updateUnitMutation.error) as any)?.message || 'An error occurred while saving unit data'}
+                </Alert>
+              )}
+
+              <Box>
+                <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 600 }}>Basic Information</Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12}>
+                    <TextField
+                      name="name"
+                      label="Unit Name"
+                      placeholder="e.g., Frontend Engineering"
+                      defaultValue={unitDialog.unit?.name}
+                      required
+                      fullWidth
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      name="department"
+                      label="Department / Division"
+                      placeholder="e.g., Technology & Product"
+                      defaultValue={unitDialog.unit?.department}
+                      required
+                      fullWidth
+                    />
+                  </Grid>
+                </Grid>
+              </Box>
+
+              <Box>
+                <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 600 }}>Management & Status</Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12}>
+                    <TextField
+                      name="manager_id"
+                      label="Unit Manager"
+                      select
+                      defaultValue={unitDialog.unit?.manager_id || ''}
+                      fullWidth
+                      helperText="Associate a supervisor as the lead of this unit"
+                    >
+                      <MenuItem value="">
+                        <em>Not Assigned</em>
+                      </MenuItem>
+                      {usersData?.users?.filter(u => u.role === 'supervisor')?.map((user) => (
+                        <MenuItem key={user.id} value={user.id}>
+                          {user.name}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      name="status"
+                      label="Operational Status"
+                      select
+                      defaultValue={unitDialog.unit?.status || 'active'}
+                      required
+                      fullWidth
+                      sx={{
+                        '& .MuiSelect-select': {
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 1.5
+                        }
+                      }}
+                    >
+                      <MenuItem value="active">
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                          <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: theme.palette.success.main, boxShadow: `0 0 8px ${theme.palette.success.main}` }} />
+                          <Typography sx={{ fontWeight: 500 }}>Active</Typography>
+                        </Box>
+                      </MenuItem>
+                      <MenuItem value="inactive">
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                          <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: theme.palette.error.main, boxShadow: `0 0 8px ${theme.palette.error.main}` }} />
+                          <Typography sx={{ fontWeight: 500 }}>Inactive</Typography>
+                        </Box>
+                      </MenuItem>
+                    </TextField>
+                  </Grid>
+                </Grid>
+              </Box>
             </Box>
           </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setUnitDialog({ open: false, mode: 'create', unit: null })}>
+          <DialogActions sx={{ p: 3, pt: 1 }}>
+            <Button
+              variant="outlined"
+              color="secondary"
+              onClick={() => setUnitDialog({ open: false, mode: 'create', unit: null })}
+              sx={{ borderRadius: 2 }}
+            >
               Cancel
             </Button>
             <Button
               type="submit"
               variant="contained"
               disabled={createUnitMutation.isPending || updateUnitMutation.isPending}
+              sx={{ borderRadius: 2, px: 4 }}
             >
-              {createUnitMutation.isPending || updateUnitMutation.isPending ? 'Saving...' : 'Save'}
+              {createUnitMutation.isPending || updateUnitMutation.isPending ? 'Processing...' : 'Save Unit'}
             </Button>
           </DialogActions>
         </form>
-      </Dialog>
+      </Dialog >
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteDialog.open} onClose={() => setDeleteDialog({ open: false, type: 'user', id: '' })}>
+      < Dialog open={deleteDialog.open} onClose={() => setDeleteDialog({ open: false, type: 'user', id: '' })}>
         <DialogTitle>Confirm Delete</DialogTitle>
         <DialogContent>
           <Typography>
@@ -664,7 +1073,7 @@ const ManagementDataView = () => {
             {deleteUserMutation.isPending || deleteUnitMutation.isPending ? 'Deleting...' : 'Delete'}
           </Button>
         </DialogActions>
-      </Dialog>
+      </Dialog >
     </>
   );
 };

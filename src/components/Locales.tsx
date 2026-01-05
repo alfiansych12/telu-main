@@ -1,3 +1,5 @@
+'use client';
+
 import { ReactNode, useEffect, useState } from 'react';
 
 // THIRD - PARTY
@@ -10,12 +12,6 @@ import { I18n } from 'types/config';
 // load locales files
 const loadLocaleData = (locale: I18n) => {
   switch (locale) {
-    // case 'fr':
-    //   return import('utils/locales/fr.json');
-    // case 'ro':
-    //   return import('utils/locales/ro.json');
-    // case 'zh':
-    //   return import('utils/locales/zh.json');
     case 'id':
       return import('utils/locales/id.json');
     case 'en':
@@ -32,7 +28,6 @@ interface Props {
 
 const Locales = ({ children }: Props) => {
   const { i18n } = useConfig();
-
   const [messages, setMessages] = useState<Record<string, string> | Record<string, MessageFormatElement[]> | undefined>();
 
   useEffect(() => {
@@ -41,14 +36,13 @@ const Locales = ({ children }: Props) => {
     });
   }, [i18n]);
 
+  // Render children immediately to avoid hydration issues, 
+  // but wrap in IntlProvider only when messages are ready.
+  // We provide a fallback empty object for messages initially.
   return (
-    <>
-      {messages && (
-        <IntlProvider locale={i18n} defaultLocale="en" messages={messages}>
-          {children}
-        </IntlProvider>
-      )}
-    </>
+    <IntlProvider locale={i18n} defaultLocale="en" messages={messages || {}}>
+      {children}
+    </IntlProvider>
   );
 };
 

@@ -1,3 +1,4 @@
+'use client';
 import { Avatar, Stack, Typography, Box } from '@mui/material';
 import useUser from 'hooks/useUser';
 import { useGetMenuMaster } from 'api/menu';

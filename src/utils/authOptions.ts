@@ -3,9 +3,10 @@ import endpoints from 'utils/endpoints';
 import { getServerSession, type NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { axiosLogin } from 'utils/axios';
+import { supabase } from 'lib/supabase/client';
 
 export const authOptions: NextAuthOptions = {
-  secret: process.env.NEXTAUTH_SECRET_KEY,
+  secret: process.env.NEXTAUTH_SECRET || process.env.NEXTAUTH_SECRET_KEY,
   providers: [
     CredentialsProvider({
       id: 'login',
@@ -16,30 +17,87 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         try {
-          const tokenResponse: any = await authLogin(credentials?.username, credentials?.password);
+          const username = credentials?.username;
+          const password = credentials?.password;
+
+          if (!username || !password) {
+            throw new Error('Please enter username and password');
+          }
+
+          // 1. Try local authentication (Supabase)
+          const { data: localUser } = await (supabase
+            .from('users')
+            .select('*')
+            .eq('email', username)
+            .single() as any);
+
+          if (localUser && localUser.password === password) {
+            console.log('Local login successful for:', username);
+            return {
+              id: localUser.id,
+              name: localUser.name,
+              email: localUser.email,
+              role: localUser.role,
+              unit_id: localUser.unit_id,
+              provider: 'local'
+            } as any;
+          }
+
+          // 2. Fallback to External SSO (Telkom University)
+          console.log('Attempting SSO login for:', username);
+          const tokenResponse: any = await authLogin(username, password);
           const accessToken = tokenResponse?.token;
 
           if (!accessToken) {
-            throw new Error(
-              tokenResponse?.response?.data?.message
-                ? tokenResponse?.response?.data?.message
-                : 'Authentication failed: failed retrieve access token.'
-            );
+            const ssoError = tokenResponse?.response?.data?.message;
+            throw new Error(ssoError || 'Invalid credentials');
           }
 
           const userResponse: any = await getProfile(accessToken);
           const userData = userResponse?.data;
 
           if (!userData) {
-            throw new Error('User profile not found.');
+            throw new Error('SSO User profile not found.');
           }
 
-          userData['accessToken'] = accessToken;
+          // 3. Sync SSO user with local users table
+          const email = userData.email || userData.username;
+          let { data: dbUser } = await (supabase
+            .from('users')
+            .select('*')
+            .eq('email', email)
+            .single() as any);
 
-          return userData;
+          if (!dbUser) {
+            console.log('Creating new Admin record for SSO user:', email);
+            const { data: newUser, error: createError } = await (supabase
+              .from('users' as any)
+              .insert({
+                email: email,
+                name: userData.fullname || userData.name || email,
+                role: 'admin',
+                status: 'active'
+              } as any)
+              .select('*')
+              .single() as any);
+
+            if (createError) console.error('Error creating admin user:', createError);
+            dbUser = newUser;
+          }
+
+          return {
+            id: dbUser?.id || userData.id,
+            name: dbUser?.name || userData.fullname || userData.name,
+            email: email,
+            role: dbUser?.role || 'admin',
+            unit_id: dbUser?.unit_id,
+            accessToken: accessToken,
+            provider: 'sso'
+          } as any;
+
         } catch (e: any) {
-          const errorMessage = e?.response?.data?.message || e.message || 'Something went wrong!';
-          throw new Error(errorMessage);
+          console.error('Auth Error:', e.message);
+          throw new Error(e.message || 'Authentication failed');
         }
       }
     })
@@ -47,9 +105,6 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     jwt: async ({ token, user, account }) => {
       if (user) {
-        // @ts-ignore
-        // token.accessToken = user.accessToken;
-        // token.id = user.id;
         token = { ...user };
         token.provider = account?.provider;
       }
@@ -57,9 +112,12 @@ export const authOptions: NextAuthOptions = {
     },
     session: ({ session, token }) => {
       if (token) {
-        // session.id = token.id;
         session.provider = token.provider;
         session.token = token;
+        // @ts-ignore
+        session.user.role = token.role;
+        // @ts-ignore
+        session.user.id = token.id;
       }
       return session;
     },
@@ -70,7 +128,7 @@ export const authOptions: NextAuthOptions = {
   },
   session: {
     strategy: 'jwt',
-    maxAge: Number(process.env.NEXT_APP_JWT_TIMEOUT!)
+    maxAge: Number(process.env.NEXT_APP_JWT_TIMEOUT || 86400)
   },
   jwt: {
     secret: process.env.NEXT_APP_JWT_SECRET
@@ -92,6 +150,7 @@ export async function authLogin(username: string | undefined, password: string |
     return error;
   }
 }
+
 export async function getProfile(token: string) {
   try {
     const { data }: AxiosResponse = await axiosLogin.get(endpoints.profile, {

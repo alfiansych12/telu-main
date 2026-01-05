@@ -1,3 +1,4 @@
+'use client';
 import { useEffect, useState, useMemo, Dispatch, MouseEvent, SetStateAction } from 'react';
 
 // NEXT
@@ -296,11 +297,11 @@ const NavCollapse = ({ menu, level, parentId, setSelectedItems, selectedItems, s
                   }),
                   ...(!drawerOpen &&
                     isSelected && {
-                      bgcolor: theme.palette.mode === ThemeMode.DARK ? 'secondary.100' : 'primary.lighter',
-                      '&:hover': {
-                        bgcolor: theme.palette.mode === ThemeMode.DARK ? 'secondary.200' : 'primary.lighter'
-                      }
-                    })
+                    bgcolor: theme.palette.mode === ThemeMode.DARK ? 'secondary.100' : 'primary.lighter',
+                    '&:hover': {
+                      bgcolor: theme.palette.mode === ThemeMode.DARK ? 'secondary.200' : 'primary.lighter'
+                    }
+                  })
                 }}
               >
                 {menuIcon}

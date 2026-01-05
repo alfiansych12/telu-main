@@ -8,9 +8,12 @@ export const allMenuGroups = [adminMenu, userMenu, supervisorMenu, participantMe
 
 // Fungsi untuk memilih menu berdasarkan role user
 const getMenuByRole = (role: string) => {
-  if (role === 'participant') return { items: [participantMenu] };
-  // Return all three menu groups to show with separators
-  return { items: [adminMenu, userMenu, supervisorMenu] };
+  if (role === 'admin') return { items: [adminMenu] };
+  if (role === 'supervisor') return { items: [supervisorMenu] };
+  if (role === 'participant') return { items: [userMenu] };
+
+  // Default fallback
+  return { items: [userMenu] };
 };
 
 export default getMenuByRole;

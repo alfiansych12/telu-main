@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactElement } from 'react';
+import { ReactElement, ReactNode } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 
 // NEXT
@@ -15,12 +15,13 @@ import ScrollTop from 'components/ScrollTop';
 
 import Notistack from 'components/third-party/Notistack';
 import Snackbar from 'components/@extended/Snackbar';
+import CustomAlert from 'components/@extended/CustomAlert';
 import Customization from 'components/customization';
 import { queryClient } from 'utils/client-actions';
 
 // ==============================|| PROVIDER WRAPPER  ||============================== //
 
-const ProviderWrapper = ({ children }: { children: ReactElement }) => {
+const ProviderWrapper = ({ children }: { children: ReactNode }) => {
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
 
   return (
@@ -29,15 +30,14 @@ const ProviderWrapper = ({ children }: { children: ReactElement }) => {
         <ThemeCustomization>
           <RTLLayout>
             <Locales>
-              <ScrollTop>
-                <SessionProvider refetchInterval={0} basePath={`${basePath}/api/auth`}>
-                  <Notistack>
-                    <Snackbar />
-                    <Customization />
-                    {children}
-                  </Notistack>
-                </SessionProvider>
-              </ScrollTop>
+              <SessionProvider refetchInterval={0} basePath={`${basePath}/api/auth`}>
+                <Notistack>
+                  <Snackbar />
+                  <CustomAlert />
+                  <Customization />
+                  {children}
+                </Notistack>
+              </SessionProvider>
             </Locales>
           </RTLLayout>
         </ThemeCustomization>

@@ -1,89 +1,162 @@
-# Supabase Setup Guide
+# 🚀 Panduan Setup Supabase
 
-## Prerequisites
+Panduan lengkap untuk setup database Supabase untuk Puti Internship Management System.
 
-1. Account Supabase di [supabase.com](https://supabase.com)
-2. Node.js versi 20.9 atau lebih tinggi
-3. Project Next.js sudah terinstall
+## 📋 Prerequisites
 
-## Step 1: Setup Supabase Project
+1. ✅ Account Supabase di [supabase.com](https://supabase.com)
+2. ✅ Node.js versi 20.9 atau lebih tinggi
+3. ✅ Project Next.js sudah terinstall
 
-1. **Buat Project Baru di Supabase**
-   - Login ke [supabase.com](https://supabase.com)
-   - Klik "New Project"
-   - Isi nama project: `puti-internship`
-   - Pilih region: `Southeast Asia (Singapore)`
-   - Klik "Create new project"
-   - Tunggu hingga project selesai dibuat (~2 menit)
+---
 
-2. **Dapatkan API Credentials**
-   - Buka project yang baru dibuat
-   - Klik "Settings" di sidebar kiri
-   - Klik "API" di menu settings
-   - Copy nilai berikut:
-     - **Project URL** → `NEXT_PUBLIC_SUPABASE_URL`
-     - **anon/public key** → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+## 🎯 Step 1: Buat Project Supabase
 
-## Step 2: Run Database Migration
+### 1.1 Buat Project Baru
 
-1. **Buka SQL Editor di Supabase**
-   - Klik "SQL Editor" di sidebar kiri
-   - Klik "New query"
+1. Login ke [supabase.com](https://supabase.com)
+2. Klik tombol **"New Project"**
+3. Isi form dengan detail berikut:
+   - **Name**: `puti-internship`
+   - **Database Password**: Buat password yang kuat (simpan dengan aman!)
+   - **Region**: `Southeast Asia (Singapore)` atau pilih region terdekat
+   - **Pricing Plan**: Free (untuk development)
+4. Klik **"Create new project"**
+5. ⏳ Tunggu ~2-3 menit hingga project selesai dibuat
 
-2. **Run Schema Migration**
-   - Copy seluruh isi file `supabase/schema.sql`
-   - Paste ke SQL Editor
-   - Klik "Run" atau tekan `Ctrl + Enter`
-   - Pastikan tidak ada error
+### 1.2 Dapatkan API Credentials
 
-3. **Run Seed Data (Optional - untuk testing)**
-   - Buat query baru
-   - Copy seluruh isi file `supabase/seed.sql`
-   - Paste ke SQL Editor
-   - Klik "Run"
-   - Pastikan tidak ada error
+Setelah project selesai dibuat:
 
-4. **Verifikasi Database**
-   - Klik "Table Editor" di sidebar
-   - Anda harus melihat 4 tabel: `users`, `units`, `attendances`, `monitoring_locations`
-   - Jika run seed.sql, setiap tabel harus berisi sample data
+1. Buka project Anda
+2. Klik **"Settings"** (⚙️) di sidebar kiri
+3. Pilih **"API"** dari menu settings
+4. **COPY** nilai-nilai berikut (Anda akan membutuhkannya nanti):
 
-## Step 3: Configure Environment Variables
-
-1. **Buat file `.env.local`** di root project
-   ```bash
-   # Copy dari .env.local.example
-   cp .env.local.example .env.local
+   ```
+   Project URL (NEXT_PUBLIC_SUPABASE_URL):
+   https://xxxxxxxxxxxxx.supabase.co
+   
+   anon/public key (NEXT_PUBLIC_SUPABASE_ANON_KEY):
+   eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
    ```
 
-2. **Update `.env.local`** dengan credentials dari Step 1
-   ```env
-   NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
-   ```
+> 💡 **Tip**: Simpan credentials ini di notepad sementara
 
-## Step 4: Install Dependencies
+---
+
+## 🗄️ Step 2: Setup Database Schema
+
+### 2.1 Buka SQL Editor
+
+1. Di dashboard Supabase, klik **"SQL Editor"** di sidebar kiri
+2. Klik **"New query"** untuk membuat query baru
+
+### 2.2 Jalankan Schema Migration
+
+1. Buka file `supabase/schema.sql` di project Anda
+2. **Copy SEMUA isi file** (Ctrl+A, Ctrl+C)
+3. **Paste** ke SQL Editor di Supabase
+4. Klik tombol **"Run"** atau tekan `Ctrl + Enter`
+5. ✅ Tunggu hingga muncul pesan sukses
+
+> ⚠️ **Penting**: Jika ada error, jangan lanjut ke step berikutnya. Baca pesan error dan perbaiki terlebih dahulu.
+
+### 2.3 Jalankan Seed Data (Opsional - Untuk Testing)
+
+Jika Anda ingin mengisi database dengan data sample untuk testing:
+
+1. Klik **"New query"** lagi di SQL Editor
+2. Buka file `supabase/seed.sql` di project Anda
+3. **Copy SEMUA isi file**
+4. **Paste** ke SQL Editor
+5. Klik **"Run"**
+6. ✅ Tunggu hingga selesai
+
+### 2.4 Verifikasi Database
+
+1. Klik **"Table Editor"** di sidebar kiri
+2. Anda harus melihat 4 tabel berikut:
+   - ✅ `users`
+   - ✅ `units`
+   - ✅ `attendances`
+   - ✅ `monitoring_locations`
+3. Jika Anda menjalankan seed.sql, klik masing-masing tabel untuk melihat data sample
+
+---
+
+## ⚙️ Step 3: Konfigurasi Environment Variables
+
+### 3.1 Buat File `.env.local`
+
+Di root folder project Anda, buat file baru bernama `.env.local`:
+
+**Windows (PowerShell):**
+```powershell
+New-Item .env.local -ItemType File
+```
+
+**Mac/Linux:**
+```bash
+touch .env.local
+```
+
+### 3.2 Isi Environment Variables
+
+Buka file `.env.local` dan isi dengan credentials dari Step 1.2:
+
+```env
+# Supabase Configuration
+NEXT_PUBLIC_SUPABASE_URL=https://xxxxxxxxxxxxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+> 🔒 **Security Note**: File `.env.local` sudah ada di `.gitignore`, jadi tidak akan ter-commit ke Git
+
+---
+
+## 📦 Step 4: Install Dependencies
+
+Pastikan dependencies Supabase sudah terinstall:
 
 ```bash
 npm install @supabase/supabase-js @supabase/ssr
 ```
 
-## Step 5: Test Connection
+Atau jika menggunakan yarn:
 
-1. **Start Development Server**
-   ```bash
-   npm run dev
-   ```
+```bash
+yarn add @supabase/supabase-js @supabase/ssr
+```
 
-2. **Open Browser**
-   - Buka http://localhost:3001
-   - Login atau navigate ke dashboard
-   - Check browser console - seharusnya tidak ada error Supabase
+---
 
-3. **Verify Data Display**
-   - Navigate ke "Management Data" page
-   - Seharusnya menampilkan data dari database (bukan data dummy)
-   - Try search, filter, dan pagination
+## 🧪 Step 5: Test Connection
+
+### 5.1 Start Development Server
+
+```bash
+npm run dev
+```
+
+### 5.2 Buka Browser
+
+1. Buka http://localhost:3001
+2. Buka **Developer Console** (F12 atau Ctrl+Shift+I)
+3. Cek tab **Console** - seharusnya **TIDAK ADA** error terkait Supabase
+
+### 5.3 Verify Data Display
+
+1. Navigate ke halaman **"Dashboard"**
+2. Anda seharusnya melihat:
+   - ✅ Total Users, Supervisors, Units (jika ada data)
+   - ✅ Chart attendance
+   - ✅ Recent activity
+3. Navigate ke **"Management Data"** page
+4. Seharusnya menampilkan data dari database (bukan dummy data)
+5. Coba fitur search, filter, dan pagination
+
+---
 
 ## Database Schema Overview
 

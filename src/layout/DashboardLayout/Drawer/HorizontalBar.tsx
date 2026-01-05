@@ -1,3 +1,4 @@
+'use client';
 import { cloneElement, ReactElement } from 'react';
 
 // MATERIAL - UI

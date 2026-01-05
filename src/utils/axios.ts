@@ -3,8 +3,8 @@ import { getSession } from 'next-auth/react';
 import { getserverAuthSession } from './authOptions';
 import { redirect } from 'next/navigation';
 
-const axiosServices = axios.create({ baseURL: process.env.NEXT_PUBLIC_NEXT_APP_API_URL });
-export const axiosLogin = axios.create({ baseURL: process.env.NEXT_APP_API_URL_LOGIN });
+const axiosServices = axios.create({ baseURL: process.env.NEXT_PUBLIC_NEXT_APP_API_URL || 'http://localhost:3001/api' });
+export const axiosLogin = axios.create({ baseURL: process.env.NEXT_PUBLIC_NEXT_APP_API_URL_LOGIN || 'https://auth-v2.telkomuniversity.ac.id/stg/api/oauth' });
 
 // ==============================|| AXIOS - FOR SERVICES ||============================== //
 

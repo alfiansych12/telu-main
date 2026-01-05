@@ -1,4 +1,5 @@
-import { useLayoutEffect, useState } from 'react';
+'use client';
+import { useState } from 'react';
 
 // MATERIAL - UI
 import { useTheme } from '@mui/material/styles';

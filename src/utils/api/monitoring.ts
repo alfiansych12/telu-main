@@ -21,15 +21,19 @@ export interface MonitoringLocationWithUser extends MonitoringLocation {
 export async function getMonitoringRequests(filters?: {
     status?: 'pending' | 'approved' | 'rejected';
     userId?: string;
+    supervisorId?: string;
+    unitId?: string;
 }) {
-    let query = supabase
-        .from('monitoring_locations')
+    let query = (supabase
+        .from('monitoring_locations' as any) as any)
         .select(`
             *,
-            user:users(
+            user:users!inner(
                 id,
                 name,
                 email,
+                supervisor_id,
+                unit_id,
                 unit:units!users_unit_id_fkey(name)
             )
         `)
@@ -41,6 +45,14 @@ export async function getMonitoringRequests(filters?: {
 
     if (filters?.userId) {
         query = query.eq('user_id', filters.userId);
+    }
+
+    if (filters?.supervisorId) {
+        query = query.filter('user.supervisor_id', 'eq', filters.supervisorId);
+    }
+
+    if (filters?.unitId) {
+        query = query.filter('user.unit_id', 'eq', filters.unitId);
     }
 
     const { data, error } = await query;
@@ -79,9 +91,9 @@ export async function updateMonitoringRequest(
     status: 'approved' | 'rejected',
     notes?: string
 ) {
-    const { data, error } = await supabase
-        .from('monitoring_locations')
-        .update({ status, notes } as any)
+    const { data, error } = await (supabase
+        .from('monitoring_locations' as any) as any)
+        .update({ status, notes })
         .eq('id', id)
         .select()
         .single();
@@ -91,7 +103,7 @@ export async function updateMonitoringRequest(
         throw error;
     }
 
-    return data as MonitoringLocation;
+    return data;
 }
 
 /**

@@ -1,3 +1,4 @@
+'use client';
 // PROJECT IMPORTS
 import Navigation from './Navigation';
 import SimpleBar from 'components/third-party/SimpleBar';

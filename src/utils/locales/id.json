@@ -143,5 +143,14 @@
   "menu": "Menu",
   "other-page": "Halaman Lain",
   "schedule": "Jadwal",
-  "More Items": "Lebih Banyak Item"
+  "More Items": "Lebih Banyak Item",
+  "Menu Admin": "Menu Admin",
+  "Dashboard": "Dashboard",
+  "Management Data": "Manajemen Data",
+  "Reports Monitoring": "Laporan Monitoring",
+  "Map Settings": "Pengaturan Map",
+  "Profile": "Profil",
+  "Menu Users": "Menu Pengguna",
+  "Menu Supervisors": "Menu Supervisor",
+  "Monitoring": "Monitoring"
 }

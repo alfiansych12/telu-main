@@ -2,14 +2,28 @@
 import { FormattedMessage } from 'react-intl';
 
 // ASSETS
-import { DocumentCode2 } from 'iconsax-react';
+import {
+  Category,
+  People,
+  DocumentText,
+  Location,
+  User,
+  Eye,
+  Setting2
+} from 'iconsax-react';
 
 // TYPE
 import { NavItemType } from 'types/menu';
 
 // ICONS
 const icons = {
-  samplePage: DocumentCode2
+  dashboard: Category,
+  managementData: People,
+  reports: DocumentText,
+  mapSettings: Location,
+  profile: User,
+  monitoring: Eye,
+  settings: Setting2
 };
 
 // ==============================|| MENU ITEMS - ADMIN MENU ||============================== //
@@ -23,28 +37,35 @@ const adminMenu: NavItemType = {
       id: 'dashboard',
       title: <FormattedMessage id="Dashboard" />,
       type: 'item',
-      icon: icons.samplePage,
+      icon: icons.dashboard,
       url: '/dashboard'
     },
     {
       id: 'Management Data',
       title: <FormattedMessage id="Management Data" />,
       type: 'item',
-      icon: icons.samplePage,
+      icon: icons.managementData,
       url: '/ManagementData'
     },
     {
       id: 'Reports Monitoring',
       title: <FormattedMessage id="Reports Monitoring" />,
       type: 'item',
-      icon: icons.samplePage,
+      icon: icons.reports,
       url: '/ReportsMonitoring'
+    },
+    {
+      id: 'Map Settings',
+      title: <FormattedMessage id="Map Settings" />,
+      type: 'item',
+      icon: icons.mapSettings,
+      url: '/MapSettings'
     },
     {
       id: 'Profileadmin',
       title: <FormattedMessage id="Profile" />,
       type: 'item',
-      icon: icons.samplePage,
+      icon: icons.profile,
       url: '/Profileadmin'
     }
   ]
@@ -61,14 +82,14 @@ const userMenu: NavItemType = {
       id: 'Dashboarduser',
       title: <FormattedMessage id="Dashboard" />,
       type: 'item',
-      icon: icons.samplePage,
+      icon: icons.dashboard,
       url: '/dashboarduser'
     },
     {
       id: 'Profiluser',
       title: <FormattedMessage id="Profile" />,
       type: 'item',
-      icon: icons.samplePage,
+      icon: icons.profile,
       url: '/Profilepart'
     }
   ]
@@ -85,21 +106,21 @@ const supervisorMenu: NavItemType = {
       id: 'Dashboardsuper',
       title: <FormattedMessage id="Dashboard" />,
       type: 'item',
-      icon: icons.samplePage,
+      icon: icons.dashboard,
       url: '/dashboardsuper'
     },
     {
       id: 'Monitoringsuper',
       title: <FormattedMessage id="Monitoring" />,
       type: 'item',
-      icon: icons.samplePage,
+      icon: icons.monitoring,
       url: '/Monitoringsuper'
     },
     {
       id: 'Profilesuper',
       title: <FormattedMessage id="Profile" />,
       type: 'item',
-      icon: icons.samplePage,
+      icon: icons.profile,
       url: '/Profilesuper'
     }
   ]

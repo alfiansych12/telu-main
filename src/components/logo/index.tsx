@@ -1,5 +1,6 @@
 // NEXT
 import Link from 'next/link';
+import { useSession } from 'next-auth/react';
 
 // MATERIAL - UI
 import ButtonBase from '@mui/material/ButtonBase';
@@ -22,10 +23,20 @@ interface Props {
   to?: To;
 }
 
-const LogoSection = ({ reverse, isIcon, sx, to }: Props) => (
-  <ButtonBase disableRipple component={Link} href={!to ? APP_DEFAULT_PATH : to} sx={sx}>
-    {isIcon ? <LogoIcon /> : <Logo />}
-  </ButtonBase>
-);
+const LogoSection = ({ reverse, isIcon, sx, to }: Props) => {
+  const { data: session } = useSession();
+  const user = session?.user as any;
+  const role = user?.role;
+
+  let path = APP_DEFAULT_PATH;
+  if (role === 'supervisor') path = '/dashboardsuper';
+  if (role === 'participant') path = '/dashboarduser';
+
+  return (
+    <ButtonBase disableRipple component={Link} href={!to ? path : to} sx={sx}>
+      {isIcon ? <LogoIcon /> : <Logo />}
+    </ButtonBase>
+  );
+};
 
 export default LogoSection;

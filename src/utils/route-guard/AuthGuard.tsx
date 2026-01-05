@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 
 // NEXT
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 
 // PROJECT IMPORTS
 import Loader from 'components/Loader';
@@ -15,22 +15,42 @@ import { useSession } from 'next-auth/react';
 // ==============================|| AUTH GUARD ||============================== //
 
 const AuthGuard = ({ children }: GuardProps) => {
-  const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
   const { data: session, status } = useSession();
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
-    const fetchData = async () => {
-      const res = await fetch(`${basePath}/api/auth/protected`);
-      const json = await res?.json();
-      if (!json?.protected) {
-        router.push('/login');
-      }
-    };
-    fetchData();
+    // If session is not available, redirect to login
+    if (status === 'unauthenticated') {
+      router.push('/login');
+      return;
+    }
 
+    // Role-based path protection (Security Tightening)
+    const user = session?.user as any;
+    const role = user?.role;
+
+    if (role === 'admin') {
+      const allowedPaths = ['/dashboard', '/ManagementData', '/ReportsMonitoring', '/Profileadmin', '/UnitsManagement', '/MapSettings'];
+      const isAllowed = allowedPaths.some(path => pathname === path || pathname.startsWith(`${path}/`));
+      if (!isAllowed) {
+        router.push('/dashboard');
+      }
+    } else if (role === 'supervisor') {
+      const allowedPaths = ['/dashboardsuper', '/Monitoringsuper', '/Profilesuper'];
+      const isAllowed = allowedPaths.some(path => pathname === path || pathname.startsWith(`${path}/`));
+      if (!isAllowed) {
+        router.push('/dashboardsuper');
+      }
+    } else if (role === 'participant') {
+      const allowedPaths = ['/dashboarduser', '/Profilepart'];
+      const isAllowed = allowedPaths.some(path => pathname === path || pathname.startsWith(`${path}/`));
+      if (!isAllowed) {
+        router.push('/dashboarduser');
+      }
+    }
     // eslint-disable-next-line
-  }, [session]);
+  }, [session, router, pathname, status]);
 
   if (status == 'loading' || !session?.user) return <Loader />;
 

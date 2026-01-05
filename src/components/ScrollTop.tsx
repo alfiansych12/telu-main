@@ -1,12 +1,14 @@
-import { ReactElement, useEffect } from 'react';
+'use client';
+import { ReactNode, useEffect } from 'react';
 
 // NEXT
 import { usePathname } from 'next/navigation';
 
 // ==============================|| NAVIGATION - SCROLL TO TOP ||============================== //
 
-const ScrollTop = ({ children }: { children: ReactElement | null }) => {
-  const pathname = usePathname();
+const ScrollTop = ({ children }: { children: ReactNode | null }) => {
+  // const pathname = usePathname();
+  const pathname = '/';
 
   useEffect(() => {
     window.scrollTo({

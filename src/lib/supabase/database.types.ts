@@ -13,9 +13,11 @@ export interface Database {
                 Row: {
                     id: string
                     email: string
+                    password: string | null
                     name: string
                     role: 'participant' | 'supervisor' | 'admin'
                     unit_id: string | null
+                    supervisor_id: string | null
                     status: 'active' | 'inactive'
                     internship_start: string | null
                     internship_end: string | null
@@ -25,9 +27,11 @@ export interface Database {
                 Insert: {
                     id?: string
                     email: string
+                    password?: string | null
                     name: string
                     role?: 'participant' | 'supervisor' | 'admin'
                     unit_id?: string | null
+                    supervisor_id?: string | null
                     status?: 'active' | 'inactive'
                     internship_start?: string | null
                     internship_end?: string | null
@@ -37,9 +41,11 @@ export interface Database {
                 Update: {
                     id?: string
                     email?: string
+                    password?: string | null
                     name?: string
                     role?: 'participant' | 'supervisor' | 'admin'
                     unit_id?: string | null
+                    supervisor_id?: string | null
                     status?: 'active' | 'inactive'
                     internship_start?: string | null
                     internship_end?: string | null
@@ -120,6 +126,7 @@ export interface Database {
                     longitude: number | null
                     request_date: string
                     status: 'pending' | 'approved' | 'rejected'
+                    reason: string | null
                     notes: string | null
                     created_at: string
                 }
@@ -131,6 +138,7 @@ export interface Database {
                     longitude?: number | null
                     request_date: string
                     status?: 'pending' | 'approved' | 'rejected'
+                    reason?: string | null
                     notes?: string | null
                     created_at?: string
                 }
@@ -142,8 +150,35 @@ export interface Database {
                     longitude?: number | null
                     request_date?: string
                     status?: 'pending' | 'approved' | 'rejected'
+                    reason?: string | null
                     notes?: string | null
                     created_at?: string
+                }
+            }
+            system_settings: {
+                Row: {
+                    id: string
+                    key: string
+                    value: Json
+                    description: string | null
+                    created_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    id?: string
+                    key: string
+                    value: Json
+                    description?: string | null
+                    created_at?: string
+                    updated_at?: string
+                }
+                Update: {
+                    id?: string
+                    key?: string
+                    value?: Json
+                    description?: string | null
+                    created_at?: string
+                    updated_at?: string
                 }
             }
         }
@@ -165,7 +200,18 @@ export interface Database {
                 }
             }
         }
-        Functions: {}
+        Functions: {
+            check_is_admin: {
+                Args: Record<PropertyKey, never>
+                Returns: boolean
+            }
+            check_is_supervisor: {
+                Args: {
+                    target_unit_id: string
+                }
+                Returns: boolean
+            }
+        }
         Enums: {
             user_role: 'participant' | 'supervisor' | 'admin'
             entity_status: 'active' | 'inactive'

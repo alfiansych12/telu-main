@@ -149,5 +149,14 @@
   "menu": "Menu",
   "other-page": "Other Pages",
   "schedule": "Schedule",
-  "More Items": "More Items"
+  "More Items": "More Items",
+  "Menu Admin": "Admin Menu",
+  "Dashboard": "Dashboard",
+  "Management Data": "Management Data",
+  "Reports Monitoring": "Reports Monitoring",
+  "Map Settings": "Map Settings",
+  "Profile": "Profile",
+  "Menu Users": "Users Menu",
+  "Menu Supervisors": "Supervisors Menu",
+  "Monitoring": "Monitoring"
 }

@@ -1,3 +1,4 @@
+'use client';
 import { useRef, useState, ReactNode, SyntheticEvent } from 'react';
 // MATERIAL - UI
 import { useTheme } from '@mui/material/styles';

@@ -8,6 +8,7 @@ type AttendanceUpdate = Database['public']['Tables']['attendances']['Update'];
 export interface GetAttendancesFilters {
     userId?: string;
     unitId?: string;
+    supervisorId?: string;
     status?: 'present' | 'absent' | 'late' | 'excused';
     dateFrom?: string;
     dateTo?: string;
@@ -30,14 +31,15 @@ export interface AttendanceWithUser extends Attendance {
  * Get attendances with optional filters
  */
 export async function getAttendances(filters: GetAttendancesFilters = {}) {
-    let query = supabase
-        .from('attendances')
+    let query = (supabase
+        .from('attendances' as any) as any)
         .select(`
       *,
-      user:users(
+      user:users!inner(
         id,
         name,
         email,
+        supervisor_id,
         unit:units!users_unit_id_fkey(name)
       )
     `);
@@ -57,6 +59,10 @@ export async function getAttendances(filters: GetAttendancesFilters = {}) {
 
     if (filters.dateTo) {
         query = query.lte('date', filters.dateTo);
+    }
+
+    if (filters.supervisorId) {
+        query = query.eq('user.supervisor_id', filters.supervisorId);
     }
 
     // Filter by unit if specified
@@ -130,8 +136,20 @@ export async function getAttendanceById(id: string) {
  * Create new attendance
  */
 export async function createAttendance(attendanceData: AttendanceInsert) {
-    const { data, error } = await supabase
+    // Check if attendance already exists for this user and date
+    const { data: existing } = await supabase
         .from('attendances')
+        .select('*')
+        .eq('user_id', attendanceData.user_id)
+        .eq('date', attendanceData.date)
+        .maybeSingle();
+
+    if (existing) {
+        return existing as Attendance;
+    }
+
+    const { data, error } = await (supabase
+        .from('attendances' as any) as any)
         .insert(attendanceData)
         .select()
         .single();
@@ -148,8 +166,8 @@ export async function createAttendance(attendanceData: AttendanceInsert) {
  * Update attendance
  */
 export async function updateAttendance(id: string, attendanceData: AttendanceUpdate) {
-    const { data, error } = await supabase
-        .from('attendances')
+    const { data, error } = await (supabase
+        .from('attendances' as any) as any)
         .update(attendanceData)
         .eq('id', id)
         .select()
@@ -167,8 +185,8 @@ export async function updateAttendance(id: string, attendanceData: AttendanceUpd
  * Get attendance statistics
  */
 export async function getAttendanceStats(dateFrom?: string, dateTo?: string) {
-    let query = supabase
-        .from('attendances')
+    let query = (supabase
+        .from('attendances' as any) as any)
         .select('status, date');
 
     if (dateFrom) {
@@ -187,11 +205,11 @@ export async function getAttendanceStats(dateFrom?: string, dateTo?: string) {
     }
 
     const stats = {
-        totalPresent: data.filter(a => a.status === 'present').length,
-        totalAbsent: data.filter(a => a.status === 'absent').length,
-        totalLate: data.filter(a => a.status === 'late').length,
-        totalExcused: data.filter(a => a.status === 'excused').length,
-        total: data.length,
+        totalPresent: (data || []).filter((a: any) => a.status === 'present').length,
+        totalAbsent: (data || []).filter((a: any) => a.status === 'absent').length,
+        totalLate: (data || []).filter((a: any) => a.status === 'late').length,
+        totalExcused: (data || []).filter((a: any) => a.status === 'excused').length,
+        total: (data || []).length,
     };
 
     return stats;

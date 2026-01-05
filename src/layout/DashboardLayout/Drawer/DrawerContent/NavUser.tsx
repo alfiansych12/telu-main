@@ -1,3 +1,4 @@
+'use client';
 // material-ui
 // import IconButton from '@mui/material/IconButton';
 // import List from '@mui/material/List';

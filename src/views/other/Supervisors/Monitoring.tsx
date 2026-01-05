@@ -1,10 +1,31 @@
 
 
 import React, { useState } from 'react';
-import { Box, Grid, TextField, Chip, FormControl, InputLabel, Select, MenuItem, CircularProgress, Alert } from '@mui/material';
+import {
+	Box,
+	Grid,
+	TextField,
+	Chip,
+	FormControl,
+	InputLabel,
+	Select,
+	MenuItem,
+	CircularProgress,
+	Alert,
+	Typography,
+	Table,
+	TableBody,
+	TableCell,
+	TableContainer,
+	TableHead,
+	TableRow,
+	Paper,
+	Stack,
+	Avatar
+} from '@mui/material';
+import { useTheme, alpha } from '@mui/material/styles';
 import { useQuery } from '@tanstack/react-query';
 import MainCard from 'components/MainCard';
-import { useTheme } from '@mui/material/styles';
 import CustomBreadcrumbs from 'components/@extended/CustomBreadcrumbs';
 import { getAttendances, AttendanceWithUser } from 'utils/api/attendances';
 
@@ -38,7 +59,7 @@ const Monitoring = () => {
 					items={['Dashboard', 'Monitoring']}
 					showDate
 					showExport
-				/> 
+				/>
 			</MainCard>
 			<Box>
 				{/* Card Filter Date & Status */}
@@ -83,53 +104,107 @@ const Monitoring = () => {
 				)}
 
 				{/* Attendance Table */}
-				<MainCard title={`Attendance for ${new Date(date).toLocaleDateString()}`}>
-					{isLoading ? (
-						<Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-							<CircularProgress />
-						</Box>
-					) : (
-						<Box sx={{ width: '100%', overflowX: 'auto' }}>
-							<table style={{ width: '100%', borderCollapse: 'collapse' }}>
-								<thead>
-									<tr style={{ background: theme.palette.primary.lighter }}>
-										<th style={{ padding: 8, textAlign: 'left' }}>Name</th>
-										<th style={{ padding: 8, textAlign: 'left' }}>Email</th>
-										<th style={{ padding: 8, textAlign: 'left' }}>Check-in</th>
-										<th style={{ padding: 8, textAlign: 'left' }}>Check-out</th>
-										<th style={{ padding: 8, textAlign: 'left' }}>Activity</th>
-										<th style={{ padding: 8, textAlign: 'left' }}>Status</th>
-									</tr>
-								</thead>
-								<tbody>
+				<MainCard border={false} shadow={theme.customShadows.z1}>
+					<Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
+						<span className="material-symbols-outlined" style={{ fontSize: 28, color: theme.palette.primary.main }}>event_note</span>
+						<Typography variant="h5">
+							Attendance for {new Date(date).toLocaleDateString('en-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+						</Typography>
+					</Box>
+
+					<TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 2 }}>
+						{isLoading ? (
+							<Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 300 }}>
+								<CircularProgress size={30} />
+							</Box>
+						) : (
+							<Table sx={{ minWidth: 700 }}>
+								<TableHead sx={{ bgcolor: theme.palette.grey[50] }}>
+									<TableRow>
+										<TableCell sx={{ fontWeight: 600 }}>User Profile</TableCell>
+										<TableCell sx={{ fontWeight: 600 }}>Username / Email</TableCell>
+										<TableCell sx={{ fontWeight: 600 }}>Check-in</TableCell>
+										<TableCell sx={{ fontWeight: 600 }}>Check-out</TableCell>
+										<TableCell sx={{ fontWeight: 600 }}>Activity Plan</TableCell>
+										<TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+									</TableRow>
+								</TableHead>
+								<TableBody>
 									{attendances.length === 0 ? (
-										<tr>
-											<td colSpan={6} style={{ padding: 16, textAlign: 'center' }}>
-												No attendance records found for this date
-											</td>
-										</tr>
+										<TableRow>
+											<TableCell colSpan={6} align="center" sx={{ py: 8 }}>
+												<Typography variant="body2" color="textSecondary">
+													No attendance records found for this date
+												</Typography>
+											</TableCell>
+										</TableRow>
 									) : (
 										attendances.map((row: AttendanceWithUser) => (
-											<tr key={row.id}>
-												<td style={{ padding: 8 }}>{row.user?.name || 'N/A'}</td>
-												<td style={{ padding: 8 }}>{row.user?.email || 'N/A'}</td>
-												<td style={{ padding: 8 }}>{row.check_in_time || '-'}</td>
-												<td style={{ padding: 8 }}>{row.check_out_time || '-'}</td>
-												<td style={{ padding: 8 }}>{row.activity_description || '-'}</td>
-												<td style={{ padding: 8 }}>
+											<TableRow key={row.id} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+												<TableCell>
+													<Stack direction="row" spacing={1.5} alignItems="center">
+														<Avatar sx={{
+															width: 36,
+															height: 36,
+															fontSize: '0.85rem',
+															fontWeight: 600,
+															bgcolor: alpha(theme.palette.primary.main, 0.1),
+															color: theme.palette.primary.main,
+															border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`
+														}}>
+															{row.user?.name?.charAt(0).toUpperCase() || 'U'}
+														</Avatar>
+														<Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{row.user?.name || 'N/A'}</Typography>
+													</Stack>
+												</TableCell>
+												<TableCell>
+													<Typography variant="body2" color="textSecondary" sx={{ fontWeight: 500 }}>{row.user?.email || 'N/A'}</Typography>
+												</TableCell>
+												<TableCell>
+													<Typography variant="body2" sx={{ fontWeight: 600, color: theme.palette.success.main }}>
+														{row.check_in_time || '-'}
+													</Typography>
+												</TableCell>
+												<TableCell>
+													<Typography variant="body2" sx={{ fontWeight: 600, color: row.check_out_time ? theme.palette.error.main : 'text.secondary' }}>
+														{row.check_out_time || '-'}
+													</Typography>
+												</TableCell>
+												<TableCell>
+													<Typography variant="body2" sx={{ maxWidth: 250, whiteSpace: 'normal', lineClamp: 2, display: '-webkit-box', overflow: 'hidden', WebkitBoxOrient: 'vertical' }}>
+														{(() => {
+															try {
+																const activity = JSON.parse(row.activity_description || '{}');
+																return activity.plan || (row.activity_description && !row.activity_description.startsWith('{') ? row.activity_description : '-');
+															} catch (e) {
+																return row.activity_description || '-';
+															}
+														})()}
+													</Typography>
+												</TableCell>
+												<TableCell>
 													<Chip
 														label={row.status}
 														color={row.status === 'present' ? 'success' : row.status === 'late' ? 'warning' : 'error'}
+														variant="filled"
 														size="small"
+														sx={{
+															px: 1,
+															height: 24,
+															fontSize: '0.7rem',
+															fontWeight: 700,
+															textTransform: 'uppercase',
+															borderRadius: 1
+														}}
 													/>
-												</td>
-											</tr>
+												</TableCell>
+											</TableRow>
 										))
 									)}
-								</tbody>
-							</table>
-						</Box>
-					)}
+								</TableBody>
+							</Table>
+						)}
+					</TableContainer>
 				</MainCard>
 			</Box>
 		</>

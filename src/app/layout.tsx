@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 
 import './globals.css';
 
+import React from 'react';
 // PROJECT IMPORTS
 import ProviderWrapper from './ProviderWrapper';
 
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
   description: 'Satu Template | Telkom University'
 };
 
-export default function RootLayout({ children }: { children: React.ReactElement }) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <head>

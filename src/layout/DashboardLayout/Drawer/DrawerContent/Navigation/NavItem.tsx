@@ -1,3 +1,4 @@
+'use client';
 import { useEffect } from 'react';
 
 // NEXT
@@ -87,19 +88,19 @@ const NavItem = ({ item, level, isParents = false }: Props) => {
             }),
             ...(drawerOpen &&
               level === 1 && {
-                mx: 1.25,
-                my: 0.5,
-                borderRadius: 1,
+              mx: 1.25,
+              my: 0.5,
+              borderRadius: 1,
+              '&:hover': {
+                bgcolor: theme.palette.mode === ThemeMode.DARK ? 'divider' : 'secondary.200'
+              },
+              '&.Mui-selected': {
+                color: iconSelectedColor,
                 '&:hover': {
-                  bgcolor: theme.palette.mode === ThemeMode.DARK ? 'divider' : 'secondary.200'
-                },
-                '&.Mui-selected': {
-                  color: iconSelectedColor,
-                  '&:hover': {
-                    color: iconSelectedColor
-                  }
+                  color: iconSelectedColor
                 }
-              }),
+              }
+            }),
             ...(!drawerOpen && {
               px: 2.75,
               '&:hover': {
@@ -124,22 +125,22 @@ const NavItem = ({ item, level, isParents = false }: Props) => {
                 color: isSelected ? iconSelectedColor : textColor,
                 ...(!drawerOpen &&
                   level === 1 && {
-                    borderRadius: 1,
-                    width: 46,
-                    height: 46,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    '&:hover': {
-                      bgcolor: theme.palette.mode === ThemeMode.DARK ? 'secondary.light' : 'secondary.200'
-                    }
-                  }),
+                  borderRadius: 1,
+                  width: 46,
+                  height: 46,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  '&:hover': {
+                    bgcolor: theme.palette.mode === ThemeMode.DARK ? 'secondary.light' : 'secondary.200'
+                  }
+                }),
                 ...(!drawerOpen &&
                   isSelected && {
-                    bgcolor: theme.palette.mode === ThemeMode.DARK ? 'secondary.100' : 'primary.lighter',
-                    '&:hover': {
-                      bgcolor: theme.palette.mode === ThemeMode.DARK ? 'secondary.200' : 'primary.lighter'
-                    }
-                  })
+                  bgcolor: theme.palette.mode === ThemeMode.DARK ? 'secondary.100' : 'primary.lighter',
+                  '&:hover': {
+                    bgcolor: theme.palette.mode === ThemeMode.DARK ? 'secondary.200' : 'primary.lighter'
+                  }
+                })
               }}
             >
               {itemIcon}
@@ -227,11 +228,11 @@ const NavItem = ({ item, level, isParents = false }: Props) => {
                 }),
                 ...(!drawerOpen &&
                   isSelected && {
-                    bgcolor: 'transparent',
-                    '&:hover': {
-                      bgcolor: 'transparent'
-                    }
-                  })
+                  bgcolor: 'transparent',
+                  '&:hover': {
+                    bgcolor: 'transparent'
+                  }
+                })
               }}
             >
               {itemIcon}

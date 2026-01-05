@@ -24,7 +24,16 @@ const GuestGuard = ({ children }: GuardProps) => {
 
       const json = await res?.json();
       if (json?.protected) {
-        router.push('/dashboard');
+        const user = session?.user as any;
+        const role = user?.role;
+
+        if (role === 'admin') {
+          router.push('/dashboard');
+        } else if (role === 'supervisor') {
+          router.push('/dashboardsuper');
+        } else {
+          router.push('/dashboarduser');
+        }
       }
     };
     fetchData();

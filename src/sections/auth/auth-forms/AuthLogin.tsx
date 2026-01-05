@@ -103,7 +103,7 @@ const AuthLogin = ({ providers, csrfToken }: any) => {
                   name="username"
                   onBlur={handleBlur}
                   onChange={handleChange}
-                  placeholder="Enter username address"
+                  placeholder="Enter username"
                   fullWidth
                   error={Boolean(touched.username && errors.username)}
                 />

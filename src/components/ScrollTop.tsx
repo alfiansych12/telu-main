@@ -2,7 +2,7 @@
 import { ReactNode, useEffect } from 'react';
 
 // NEXT
-import { usePathname } from 'next/navigation';
+
 
 // ==============================|| NAVIGATION - SCROLL TO TOP ||============================== //
 

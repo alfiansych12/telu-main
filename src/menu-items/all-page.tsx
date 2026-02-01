@@ -9,7 +9,9 @@ import {
   Location,
   User,
   Eye,
-  Setting2
+  Setting2,
+  Award,
+  Scanner
 } from 'iconsax-react';
 
 // TYPE
@@ -23,7 +25,9 @@ const icons = {
   mapSettings: Location,
   profile: User,
   monitoring: Eye,
-  settings: Setting2
+  settings: Setting2,
+  assessment: Award,
+  scanner: Scanner
 };
 
 // ==============================|| MENU ITEMS - ADMIN MENU ||============================== //
@@ -60,6 +64,13 @@ const adminMenu: NavItemType = {
       type: 'item',
       icon: icons.mapSettings,
       url: '/MapSettings'
+    },
+    {
+      id: 'Certificate Scanner',
+      title: <FormattedMessage id="Certificate Scanner" />,
+      type: 'item',
+      icon: icons.scanner,
+      url: '/CertificateScanner'
     },
     {
       id: 'Profileadmin',
@@ -115,6 +126,20 @@ const supervisorMenu: NavItemType = {
       type: 'item',
       icon: icons.monitoring,
       url: '/Monitoringsuper'
+    },
+    {
+      id: 'Assessmentsuper',
+      title: <FormattedMessage id="Rekap Penilaian" />,
+      type: 'item',
+      icon: icons.assessment,
+      url: '/assessmentsuper'
+    },
+    {
+      id: 'AttendanceReport',
+      title: <FormattedMessage id="Rekap Kehadiran" />,
+      type: 'item',
+      icon: icons.reports,
+      url: '/AttendanceReport'
     },
     {
       id: 'Profilesuper',

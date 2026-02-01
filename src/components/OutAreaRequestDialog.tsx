@@ -18,6 +18,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createMonitoringRequest } from 'utils/api/monitoring';
 import { openAlert } from 'api/alert';
 
+import { signOut } from 'next-auth/react';
+
 const MapPickerComponent = dynamic(() => import('components/MapPickerComponent'), {
     ssr: false,
     loading: () => (
@@ -35,7 +37,6 @@ interface OutAreaRequestDialogProps {
 
 const OutAreaRequestDialog: React.FC<OutAreaRequestDialogProps> = ({ open, onClose, userId }) => {
     const queryClient = useQueryClient();
-    const [locationName, setLocationName] = useState('');
     const [reason, setReason] = useState('');
     const [latitude, setLatitude] = useState(-6.974580);
     const [longitude, setLongitude] = useState(107.630910);
@@ -54,6 +55,9 @@ const OutAreaRequestDialog: React.FC<OutAreaRequestDialogProps> = ({ open, onClo
         mutationFn: createMonitoringRequest,
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['monitoring-requests'] });
+            queryClient.invalidateQueries({ queryKey: ['today-monitoring-requests'] });
+            queryClient.invalidateQueries({ queryKey: ['user-attendances'] });
+            queryClient.invalidateQueries({ queryKey: ['participant-dashboard-data'] });
             openAlert({
                 title: 'Request Submitted!',
                 message: 'Your out-area check-in request has been submitted for approval.',
@@ -62,16 +66,27 @@ const OutAreaRequestDialog: React.FC<OutAreaRequestDialogProps> = ({ open, onClo
             handleClose();
         },
         onError: (error: any) => {
-            openAlert({
-                title: 'Error',
-                message: 'Failed to submit request: ' + error.message,
-                variant: 'error'
-            });
+            console.error('Submission error:', error);
+
+            if (error.message && (error.message.includes('Foreign key constraint violated') || error.message.includes('monitoring_locations_user_id'))) {
+                openAlert({
+                    title: 'Authentication Error',
+                    message: 'Your user session is invalid. Please log in again to fix this issue.',
+                    variant: 'error',
+                    confirmText: 'Log Out Now',
+                    onConfirm: () => signOut({ callbackUrl: '/login' })
+                });
+            } else {
+                openAlert({
+                    title: 'Error',
+                    message: 'Failed to submit request: ' + error.message,
+                    variant: 'error'
+                });
+            }
         }
     });
 
     const handleClose = () => {
-        setLocationName('');
         setReason('');
         setLatitude(-6.974580);
         setLongitude(107.630910);
@@ -79,10 +94,21 @@ const OutAreaRequestDialog: React.FC<OutAreaRequestDialogProps> = ({ open, onClo
     };
 
     const handleSubmit = () => {
-        if (!locationName.trim()) {
+        if (!userId) {
+            openAlert({
+                title: 'Authentication Missing',
+                message: 'User ID is missing. Please log in again.',
+                variant: 'error',
+                confirmText: 'Log Out & Retry',
+                onConfirm: () => signOut({ callbackUrl: '/login' })
+            });
+            return;
+        }
+
+        if (!reason.trim()) {
             openAlert({
                 title: 'Validation Error',
-                message: 'Please enter a location name',
+                message: 'Please provide a reason for your request',
                 variant: 'warning'
             });
             return;
@@ -90,7 +116,7 @@ const OutAreaRequestDialog: React.FC<OutAreaRequestDialogProps> = ({ open, onClo
 
         mutation.mutate({
             user_id: userId,
-            location_name: locationName,
+            location_name: `Out-Area Request (${reason.substring(0, 20)}...)`,
             latitude,
             longitude,
             request_date: new Date().toISOString().split('T')[0],
@@ -114,12 +140,15 @@ const OutAreaRequestDialog: React.FC<OutAreaRequestDialogProps> = ({ open, onClo
                     </Typography>
 
                     <TextField
-                        label="Location Name"
-                        value={locationName}
-                        onChange={(e) => setLocationName(e.target.value)}
+                        label="Reason for Out-Area Check-In"
+                        value={reason}
+                        onChange={(e) => setReason(e.target.value)}
+                        required
                         fullWidth
-                        placeholder="e.g., Client Office - Jakarta"
-                        helperText="Enter a descriptive name for this location"
+                        multiline
+                        rows={3}
+                        placeholder="Explain why you need to check-in from this location..."
+                        helperText="Provide a reason for your supervisor to review"
                     />
 
                     <Box>
@@ -152,17 +181,6 @@ const OutAreaRequestDialog: React.FC<OutAreaRequestDialogProps> = ({ open, onClo
                             fullWidth
                         />
                     </Stack>
-
-                    <TextField
-                        label="Reason (Optional)"
-                        value={reason}
-                        onChange={(e) => setReason(e.target.value)}
-                        fullWidth
-                        multiline
-                        rows={3}
-                        placeholder="Explain why you need to check-in from this location..."
-                        helperText="Provide an optional reason for your supervisor to review"
-                    />
                 </Stack>
             </DialogContent>
             <DialogActions sx={{ px: 3, pb: 3 }}>

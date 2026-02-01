@@ -1,13 +1,23 @@
-// PROJECT IMPORTS
-import DashboardLayout from 'layout/DashboardLayout';
-import AuthGuard from 'utils/route-guard/AuthGuard';
+import dynamic from 'next/dynamic';
+import React, { Suspense } from 'react';
+import Loader from 'components/Loader';
 
-// ==============================|| DASHBOARD LAYOUT ||============================== //
+const AuthGuard = dynamic(() => import('utils/route-guard/AuthGuard'), {
+  ssr: false,
+  loading: () => <Loader />
+});
+
+const DashboardLayout = dynamic(() => import('layout/DashboardLayout'), {
+  ssr: false,
+  loading: () => <Loader />
+});
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <AuthGuard>
-      <DashboardLayout>{children}</DashboardLayout>
-    </AuthGuard>
+    <Suspense fallback={<Loader />}>
+      <AuthGuard>
+        <DashboardLayout>{children}</DashboardLayout>
+      </AuthGuard>
+    </Suspense>
   );
 }

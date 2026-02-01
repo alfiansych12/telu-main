@@ -11,6 +11,9 @@ import Toolbar from '@mui/material/Toolbar';
 import AppBarStyled from './AppBarStyled';
 import HeaderContent from './HeaderContent';
 import IconButton from 'components/@extended/IconButton';
+import Logo from 'components/logo';
+
+import { Stack } from '@mui/material';
 
 import { DRAWER_WIDTH, MINI_DRAWER_WIDTH } from 'config';
 import useConfig from 'hooks/useConfig';
@@ -44,17 +47,30 @@ const Header = () => {
   const mainHeader: ReactNode = (
     <Toolbar sx={{ px: { xs: 2, sm: 4.5, lg: 8 }, justifyContent: 'space-between' }}>
       {!isHorizontal ? (
-        <IconButton
-          aria-label="open drawer"
-          onClick={() => handlerDrawerOpen(!drawerOpen)}
-          edge="start"
-          color="secondary"
-          variant="light"
-          size="large"
-          sx={{ color: 'secondary.main', bgcolor: drawerOpen ? iconBackColorOpen : iconBackColor, ml: { xs: 0, lg: -2 }, p: 1 }}
-        >
-          <HambergerMenu />
-        </IconButton>
+        <Stack direction="row" alignItems="center" spacing={1} sx={{ zIndex: theme.zIndex.drawer + 2, position: 'relative' }}>
+          <IconButton
+            aria-label="open drawer"
+            onClick={() => handlerDrawerOpen(!drawerOpen)}
+            edge="start"
+            color="secondary"
+            variant="light"
+            size="large"
+            sx={{
+              color: 'secondary.main',
+              bgcolor: drawerOpen ? iconBackColorOpen : iconBackColor,
+              ml: { xs: 0, lg: -2 },
+              p: 1,
+              zIndex: theme.zIndex.drawer + 3,
+              pointerEvents: 'auto',
+              '&:hover': {
+                bgcolor: theme.palette.mode === ThemeMode.DARK ? 'secondary.100' : 'secondary.200'
+              }
+            }}
+          >
+            <HambergerMenu />
+          </IconButton>
+          {downLG && <Logo isIcon sx={{ width: 35, height: 35, display: { xs: 'flex', lg: 'none' }, pointerEvents: 'none' }} />}
+        </Stack>
       ) : null}
       {headerContent}
     </Toolbar>
@@ -67,10 +83,11 @@ const Header = () => {
     sx: {
       bgcolor: alpha(theme.palette.background.default, 0.8),
       backdropFilter: 'blur(8px)',
-      zIndex: 1200,
+      zIndex: theme.zIndex.appBar,
       width: isHorizontal
         ? '100%'
-        : { xs: '100%', lg: drawerOpen ? `calc(100% - ${DRAWER_WIDTH}px)` : `calc(100% - ${MINI_DRAWER_WIDTH}px)` }
+        : { xs: '100%', lg: drawerOpen ? `calc(100% - ${DRAWER_WIDTH}px)` : `calc(100% - ${MINI_DRAWER_WIDTH}px)` },
+      pointerEvents: 'auto'
     }
   };
 

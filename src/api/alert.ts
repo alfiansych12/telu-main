@@ -1,3 +1,4 @@
+'use client';
 import { useMemo } from 'react';
 import useSWR, { mutate } from 'swr';
 
@@ -33,10 +34,9 @@ export function useGetAlert() {
 export function openAlert(alert: Partial<AlertProps>) {
     mutate(
         endpoints.key,
-        (currentAlert: any) => {
+        () => {
             return {
                 ...initialState,
-                ...currentAlert,
                 ...alert,
                 open: true
             };

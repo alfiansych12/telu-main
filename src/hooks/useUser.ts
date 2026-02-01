@@ -11,19 +11,18 @@ interface UserProps {
 
 const useUser = () => {
   const { data: session } = useSession();
-  if (session) {
-    const user = session?.token;
+  if (session?.user) {
+    const user = session.user as any;
 
-    if (!user?.photo) {
-      user!.photo = withBasePath('/assets/images/users/avatar-1.png');
-    }
+    // Support photo from both session.user and legacy session.token
+    const photo = user.photo || (session as any).token?.photo;
 
     const newUser: UserProps = {
-      username: user!.user!,
-      fullName: user!.fullname!,
-      photo: user?.photo!,
-      role: user!.role!,
-      nim: user!.numberid!
+      username: user.email || (session as any).token?.email || '',
+      fullName: user.name || (session as any).token?.fullname || user.fullName || '',
+      photo: photo && photo !== '' ? photo : withBasePath('/assets/images/users/avatar-1.png'),
+      role: user.role || (session as any).token?.role || '',
+      nim: user.id || (session as any).token?.id || 0
     };
 
     return newUser;

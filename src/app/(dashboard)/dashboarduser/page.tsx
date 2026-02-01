@@ -1,11 +1,24 @@
-// PROJECT IMPORTS
-'use client';
-import DashboarduserView from "views/other/Participant/DashboardPage";
+import dynamic from 'next/dynamic';
+import { Suspense } from 'react';
+import { Box, CircularProgress } from '@mui/material';
 
-// ==============================|| SAMPLE PAGE ||============================== //
+const DashboarduserView = dynamic(() => import('views/other/Participant/DashboardPage'), {
+  ssr: false,
+  loading: () => (
+    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+      <CircularProgress />
+    </Box>
+  )
+});
 
-const DashboardPage = () => {
-  return <DashboarduserView />;
-};
-
-export default DashboardPage;
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+        <CircularProgress />
+      </Box>
+    }>
+      <DashboarduserView />
+    </Suspense>
+  );
+}

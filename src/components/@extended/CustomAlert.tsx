@@ -88,7 +88,7 @@ const CustomAlert = () => {
                                 {alert.title}
                             </Typography>
                         )}
-                        <Typography variant="body1" color="textSecondary" sx={{ textAlign: 'center', fontSize: '1.1rem' }}>
+                        <Typography variant="body1" color="textSecondary" sx={{ textAlign: 'center', fontSize: '1.1rem', whiteSpace: 'pre-line' }}>
                             {alert.message}
                         </Typography>
                     </Stack>

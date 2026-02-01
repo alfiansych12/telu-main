@@ -22,7 +22,6 @@ import { enqueueSnackbar } from 'notistack';
 // PROJECT IMPORTS
 import IconButton from 'components/@extended/IconButton';
 import AnimateButton from 'components/@extended/AnimateButton';
-// import useScriptRef from 'hooks/useScriptRef';
 
 // ASSETS
 import { Eye, EyeSlash } from 'iconsax-react';
@@ -30,10 +29,8 @@ import { Eye, EyeSlash } from 'iconsax-react';
 // ============================|| JWT - LOGIN ||============================ //
 
 const AuthLogin = ({ providers, csrfToken }: any) => {
-  // const scriptedRef = useScriptRef();
-  // const [checked, setChecked] = useState(false);
-  // const { data: session } = useSession();
   const [showPassword, setShowPassword] = useState(false);
+
   const handleClickShowPassword = () => {
     setShowPassword(!showPassword);
   };
@@ -60,6 +57,7 @@ const AuthLogin = ({ providers, csrfToken }: any) => {
             username: values.username,
             password: values.password
           });
+
           if (result?.error) {
             setErrors({
               submit: result.error ? result.error : 'Login failed. Please try again.'
@@ -72,18 +70,33 @@ const AuthLogin = ({ providers, csrfToken }: any) => {
                 horizontal: 'right'
               }
             });
-          } else {
-            setStatus({ success: true });
             setSubmitting(false);
-            enqueueSnackbar('Login Success!', {
+          } else if (result?.ok) {
+            setStatus({ success: true });
+
+            // Get session info to determine redirect path
+            const session = await fetch(`${window.location.origin}${process.env.NEXT_PUBLIC_BASE_PATH || ''}/api/auth/session`).then(res => res.json());
+            const role = session?.user?.role;
+
+            let redirectPath = '/dashboarduser'; // default
+            if (role === 'admin') redirectPath = '/dashboard';
+            else if (role === 'supervisor') redirectPath = '/dashboardsuper';
+
+            enqueueSnackbar(`Login Success as ${role}!`, {
               variant: 'success',
               anchorOrigin: {
                 vertical: 'bottom',
                 horizontal: 'right'
               }
             });
+
+            // Redirect to appropriate dashboard after successful login
+            setTimeout(() => {
+              window.location.href = redirectPath;
+            }, 500);
           }
         } catch (error) {
+          console.error('Login error:', error);
           setErrors({ submit: 'Login failed. Please try again.' });
           setStatus({ success: false });
           setSubmitting(false);
@@ -149,25 +162,6 @@ const AuthLogin = ({ providers, csrfToken }: any) => {
               </Stack>
             </Grid>
 
-            {/* <Grid item xs={12} sx={{ mt: -1 }}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={2}>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={checked}
-                      onChange={(event) => setChecked(event.target.checked)}
-                      name="checked"
-                      color="primary"
-                      size="small"
-                    />
-                  }
-                  label={<Typography variant="h6">Keep me sign in</Typography>}
-                />
-                <Links variant="h6" component={Link} href={session ? '/auth/forgot-password' : '/forgot-password'} color="text.primary">
-                  Forgot Password?
-                </Links>
-              </Stack>
-            </Grid> */}
             {errors.submit && (
               <Grid item xs={12}>
                 <FormHelperText error>{errors.submit}</FormHelperText>

@@ -22,17 +22,16 @@ import {
   Chip,
   CircularProgress
 } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
+import { useTheme, alpha } from '@mui/material/styles';
 
 // PROJECT IMPORTS
 import MainCard from 'components/MainCard';
-import CustomBreadcrumbs from 'components/@extended/CustomBreadcrumbs';
 import IconButton from 'components/@extended/IconButton';
 import { updateUser } from 'utils/api/users';
 import { openAlert } from 'api/alert';
 
 // ICONS
-import { Eye, EyeSlash, Personalcard, Global, PasswordCheck, Edit, User as UserIcon } from 'iconsax-react';
+import { Eye, EyeSlash, Personalcard, Global, PasswordCheck, Edit, User as UserIcon, CalendarTick } from 'iconsax-react';
 
 // ==============================|| PROFILE PAGE ||============================== //
 
@@ -55,7 +54,10 @@ export default function ProfilePage() {
   const mutation = useMutation({
     mutationFn: (data: any) => updateUser(user?.id, data),
     onSuccess: async () => {
-      await updateSession();
+      await updateSession({
+        name: formData.name,
+        email: formData.email
+      });
       queryClient.invalidateQueries({ queryKey: ['user-profile', user?.id] });
       openAlert({
         title: 'Profile Updated',
@@ -98,10 +100,25 @@ export default function ProfilePage() {
   if (!session) return <Box sx={{ p: 5, textAlign: 'center' }}><CircularProgress /></Box>;
 
   return (
-    <>
-      <MainCard border={false} sx={{ mb: 3, p: 0 }}>
-        <CustomBreadcrumbs items={['Dashboard', 'Profile']} showDate />
-      </MainCard>
+    <Box sx={{ px: 1 }}>
+      <Box sx={{ mb: 3, display: 'flex', flexDirection: { xs: 'column', md: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'center' }, gap: 2 }}>
+        <Typography variant="h4" sx={{ fontWeight: 700 }}>Profile Settings</Typography>
+        <Box sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1.5,
+          bgcolor: alpha(theme.palette.primary.lighter, 0.2),
+          px: 2,
+          py: 1,
+          borderRadius: 2,
+          border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`
+        }}>
+          <CalendarTick size={20} color={theme.palette.primary.main} />
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: theme.palette.primary.darker }}>
+            {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+          </Typography>
+        </Box>
+      </Box>
 
       <Grid container spacing={3}>
         {/* Profile Card */}
@@ -112,7 +129,13 @@ export default function ProfilePage() {
             textAlign: 'center',
             background: `linear-gradient(135deg, ${theme.palette.primary.lighter}, #fff)`,
             border: `1px solid ${theme.palette.divider}`,
-            height: '100%'
+            height: '100%',
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            '&:hover': {
+              transform: 'translateY(-4px)',
+              boxShadow: `0 15px 35px -8px ${alpha(theme.palette.primary.main, 0.2)}`,
+              borderColor: alpha(theme.palette.primary.main, 0.3)
+            }
           }}>
             <Box sx={{ position: 'relative', display: 'inline-block' }}>
               <Avatar
@@ -145,7 +168,7 @@ export default function ProfilePage() {
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                 <Personalcard size={20} color={theme.palette.primary.main} />
                 <Box>
-                  <Typography variant="caption" color="textSecondary">Username / Email</Typography>
+                  <Typography variant="caption" color="textSecondary">Username</Typography>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>{user?.email}</Typography>
                 </Box>
               </Box>
@@ -192,7 +215,7 @@ export default function ProfilePage() {
 
                 <Grid item xs={12} sm={6}>
                   <Stack spacing={1}>
-                    <InputLabel>Username / Email</InputLabel>
+                    <InputLabel>Username</InputLabel>
                     <TextField
                       fullWidth
                       value={formData.email}
@@ -260,6 +283,6 @@ export default function ProfilePage() {
           </MainCard>
         </Grid>
       </Grid>
-    </>
+    </Box>
   );
 }

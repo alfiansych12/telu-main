@@ -43,3 +43,4 @@ node_modules/
 !.env.project
 !.env.vault
 .flaskenv*
+/src/generated/prisma

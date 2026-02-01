@@ -15,10 +15,9 @@ import Header from './Header';
 import Footer from './Footer';
 import HorizontalBar from './Drawer/HorizontalBar';
 import Loader from 'components/Loader';
-import Breadcrumbs from 'components/@extended/Breadcrumbs';
 
 import useConfig from 'hooks/useConfig';
-import { DRAWER_WIDTH } from 'config';
+import { DRAWER_WIDTH, MINI_DRAWER_WIDTH } from 'config';
 import { handlerDrawerOpen, useGetMenuMaster } from 'api/menu';
 
 // TYPES
@@ -28,7 +27,8 @@ import { MenuOrientation } from 'types/config';
 
 const DashboardLayout = ({ children }: { children: ReactNode }) => {
   const theme = useTheme();
-  const { menuMasterLoading } = useGetMenuMaster();
+  const { menuMaster, menuMasterLoading } = useGetMenuMaster();
+  const drawerOpen = menuMaster.isDashboardDrawerOpened;
   const downXL = useMediaQuery(theme.breakpoints.down('xl'));
   const downLG = useMediaQuery(theme.breakpoints.down('lg'));
 
@@ -51,7 +51,19 @@ const DashboardLayout = ({ children }: { children: ReactNode }) => {
       <Header />
       {!isHorizontal ? <Drawer /> : <HorizontalBar />}
 
-      <Box component="main" sx={{ width: `calc(100% - ${DRAWER_WIDTH}px)`, flexGrow: 1, p: { xs: 1, sm: 3 } }}>
+      <Box
+        component="main"
+        sx={{
+          width: isHorizontal
+            ? '100%'
+            : {
+              xs: '100%',
+              lg: drawerOpen ? `calc(100% - ${DRAWER_WIDTH}px)` : `calc(100% - ${MINI_DRAWER_WIDTH}px)`
+            },
+          flexGrow: 1,
+          p: { xs: 1, sm: 3 }
+        }}
+      >
         <Toolbar sx={{ mt: isHorizontal ? 8 : 'inherit', mb: isHorizontal ? 2 : 'inherit' }} />
         <Container
           maxWidth={container ? 'xl' : false}

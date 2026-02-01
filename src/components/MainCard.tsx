@@ -11,7 +11,7 @@ import Divider from '@mui/material/Divider';
 import Typography from '@mui/material/Typography';
 
 // project-imports
-import useConfig from 'hooks/useConfig';
+
 
 // types
 import { KeyedObject } from 'types/root';
@@ -67,7 +67,7 @@ function MainCard(
   ref: Ref<HTMLDivElement>
 ) {
   const theme = useTheme();
-  const { themeContrast } = useConfig();
+
 
   return (
     <Card
@@ -78,11 +78,39 @@ function MainCard(
       sx={{
         position: 'relative',
         border: border ? '1px solid' : 'none',
-        borderRadius: 1.5,
+        borderRadius: 2,
         borderColor: theme.palette.divider,
-        ...(((themeContrast && boxShadow) || shadow) && {
-          boxShadow: shadow ? shadow : theme.customShadows.z1
+        // Enhanced shadow box with multiple layers
+        boxShadow: shadow
+          ? shadow
+          : boxShadow
+            ? `0 2px 8px -2px ${theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0.08)'}, 
+               0 4px 16px -4px ${theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.06)'}, 
+               0 8px 32px -8px ${theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.04)'}`
+            : 'none',
+        // Subtle gradient background for depth
+        background: boxShadow
+          ? `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${theme.palette.mode === 'dark'
+            ? 'rgba(255,255,255,0.02)'
+            : 'rgba(0,0,0,0.01)'
+          } 100%)`
+          : theme.palette.background.paper,
+        // Smooth transitions
+        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        // Hover effects for interactive cards
+        ...(!modal && boxShadow && {
+          '&:hover': {
+            transform: 'translateY(-4px)',
+            boxShadow: boxShadow
+              ? `0 4px 16px -2px ${theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.12)'}, 
+                 0 8px 32px -4px ${theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0.1)'}, 
+                 0 16px 48px -8px ${theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.08)'}, 
+                 0 0 0 1px ${theme.palette.primary.main}20`
+              : 'none',
+            borderColor: theme.palette.primary.main + '40',
+          }
         }),
+        // Code highlight styles
         ...(codeHighlight && {
           '& pre': {
             m: 0,
@@ -91,6 +119,7 @@ function MainCard(
             fontSize: '0.75rem'
           }
         }),
+        // Modal positioning
         ...(modal && {
           position: 'absolute' as 'absolute',
           top: '50%',
@@ -103,6 +132,7 @@ function MainCard(
             maxHeight: `calc(100vh - 200px)`
           }
         }),
+        // Custom sx overrides
         ...sx
       }}
     >

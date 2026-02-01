@@ -25,6 +25,16 @@ const adminIcon = new L.Icon({
     shadowSize: [41, 41]
 });
 
+// Custom icon for Out-Area Request (Orange Dot)
+const requestIcon = new L.Icon({
+    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-orange.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41]
+});
+
 // Default Icon Fix using CDN
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -37,7 +47,7 @@ interface MapMarker {
     position: [number, number];
     title: string;
     subtitle?: string;
-    type?: 'user' | 'admin';
+    type?: 'user' | 'admin' | 'request';
 }
 
 interface MapComponentProps {
@@ -78,40 +88,53 @@ const MapComponent: React.FC<MapComponentProps> = ({
             </>
 
             {/* Render dynamically passed markers */}
-            {markers.map((marker, index) => (
-                <Marker
-                    key={index}
-                    position={marker.position}
-                    icon={marker.type === 'admin' ? adminIcon : userIcon}
-                >
-                    <Popup>
-                        <div style={{ padding: '4px', minWidth: 160, textAlign: 'center' }}>
-                            <div style={{
-                                width: 40,
-                                height: 40,
-                                borderRadius: '50%',
-                                backgroundColor: marker.type === 'admin' ? '#f44336' : '#2196f3',
-                                color: 'white',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                margin: '0 auto 8px',
-                                fontWeight: 'bold',
-                                fontSize: '1.2rem',
-                                boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
-                            }}>
-                                {marker.title.charAt(0)}
+            {markers.map((marker, index) => {
+                let icon = userIcon;
+                let bgColor = '#2196f3';
+
+                if (marker.type === 'admin') {
+                    icon = adminIcon;
+                    bgColor = '#f44336';
+                } else if (marker.type === 'request') {
+                    icon = requestIcon;
+                    bgColor = '#ff9800';
+                }
+
+                return (
+                    <Marker
+                        key={index}
+                        position={marker.position}
+                        icon={icon}
+                    >
+                        <Popup>
+                            <div style={{ padding: '4px', minWidth: 160, textAlign: 'center' }}>
+                                <div style={{
+                                    width: 40,
+                                    height: 40,
+                                    borderRadius: '50%',
+                                    backgroundColor: bgColor,
+                                    color: 'white',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    margin: '0 auto 8px',
+                                    fontWeight: 'bold',
+                                    fontSize: '1.2rem',
+                                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+                                }}>
+                                    {marker.title.charAt(0)}
+                                </div>
+                                <strong style={{ fontSize: '0.95rem', display: 'block', marginBottom: '2px' }}>{marker.title}</strong>
+                                {marker.subtitle && (
+                                    <span style={{ fontSize: '0.75rem', color: '#666', display: 'block' }}>
+                                        {marker.subtitle}
+                                    </span>
+                                )}
                             </div>
-                            <strong style={{ fontSize: '0.95rem', display: 'block', marginBottom: '2px' }}>{marker.title}</strong>
-                            {marker.subtitle && (
-                                <span style={{ fontSize: '0.75rem', color: '#666', display: 'block' }}>
-                                    {marker.subtitle}
-                                </span>
-                            )}
-                        </div>
-                    </Popup>
-                </Marker>
-            ))}
+                        </Popup>
+                    </Marker>
+                );
+            })}
 
             {/* Individual User Current Location (for Individual Dashboard) */}
             {userPosition && !markers.length && (

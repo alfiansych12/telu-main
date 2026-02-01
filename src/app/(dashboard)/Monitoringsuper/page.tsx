@@ -1,7 +1,12 @@
-// PROJECT IMPORTS
 'use client';
-import MonitoringsuperView from "views/other/Supervisors/Monitoring";
+import dynamic from 'next/dynamic';
+import Loader from 'components/Loader';
 
-// ==============================|| SAMPLE PAGE ||============================== //
+const MonitoringsuperView = dynamic(() => import('views/other/Supervisors/Monitoring'), {
+    ssr: false,
+    loading: () => <Loader />
+});
 
-export default MonitoringsuperView;
+export default function MonitoringsuperPage() {
+    return <MonitoringsuperView />;
+}

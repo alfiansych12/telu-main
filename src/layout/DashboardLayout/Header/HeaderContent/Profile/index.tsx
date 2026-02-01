@@ -1,5 +1,6 @@
 'use client';
 import { useRef, useState, ReactNode, SyntheticEvent } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 // MATERIAL - UI
 import { useTheme } from '@mui/material/styles';
 import Box from '@mui/material/Box';
@@ -70,6 +71,7 @@ function a11yProps(index: number) {
 const ProfilePage = () => {
   const theme = useTheme();
   const user = useUser();
+  const queryClient = useQueryClient();
 
   const anchorRef = useRef<any>(null);
   const [open, setOpen] = useState(false);
@@ -108,7 +110,12 @@ const ProfilePage = () => {
         aria-haspopup="true"
         onClick={handleToggle}
       >
-        <Avatar alt="profile user" src={user ? user?.photo : avatar1} />
+        <Stack direction="row" spacing={1.25} alignItems="center" sx={{ p: 0.5, px: { xs: 1, md: 2 } }}>
+          <Avatar alt="profile user" src={user ? user?.photo : avatar1} size="sm" />
+          <Typography variant="subtitle1" sx={{ display: { xs: 'none', md: 'block' }, fontWeight: 600 }}>
+            {user ? user.fullName : ''}
+          </Typography>
+        </Stack>
       </ButtonBase>
       <Popper
         placement="bottom-end"
@@ -159,7 +166,7 @@ const ProfilePage = () => {
                       </Stack>
 
                       <Tooltip title="Logout">
-                        <IconButton size="large" color="error" sx={{ p: 1 }} onClick={handleLogout}>
+                        <IconButton size="large" color="error" sx={{ p: 1 }} onClick={() => handleLogout(queryClient)}>
                           <Logout variant="Bulk" />
                         </IconButton>
                       </Tooltip>

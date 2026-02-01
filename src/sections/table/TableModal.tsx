@@ -7,9 +7,7 @@ import {
   Divider,
   Grid,
   IconButton,
-  InputLabel,
   Stack,
-  TextField,
   Tooltip
 } from '@mui/material';
 import _ from 'lodash';
@@ -65,7 +63,7 @@ export default function TableModal({ open, modalToggler, item }: Props) {
     }
   });
 
-  const { errors, touched, handleSubmit, isSubmitting, getFieldProps } = formik;
+  const { handleSubmit, isSubmitting } = formik;
   const closeModal = () => modalToggler(false);
   return (
     <>

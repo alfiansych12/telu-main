@@ -20,39 +20,50 @@ const AuthGuard = ({ children }: GuardProps) => {
   const pathname = usePathname();
 
   useEffect(() => {
-    // If session is not available, redirect to login
-    if (status === 'unauthenticated') {
+    if (status === 'loading') return;
+
+    // 1. If session is not available, redirect to login
+    if (status === 'unauthenticated' || !session) {
+      console.log('[AuthGuard] Unauthenticated - Directing to login');
       router.push('/login');
       return;
     }
 
-    // Role-based path protection (Security Tightening)
-    const user = session?.user as any;
+    const user = session.user as any;
     const role = user?.role;
+    console.log(`[AuthGuard] Authenticated as ${role} for path: ${pathname}`);
 
-    if (role === 'admin') {
-      const allowedPaths = ['/dashboard', '/ManagementData', '/ReportsMonitoring', '/Profileadmin', '/UnitsManagement', '/MapSettings'];
-      const isAllowed = allowedPaths.some(path => pathname === path || pathname.startsWith(`${path}/`));
-      if (!isAllowed) {
-        router.push('/dashboard');
+    // 2. Role-based path protection (Security Tightening)
+    // Map of roles to their dashboard entry points and allowed path prefixes
+    const roleConfig: Record<string, { dashboard: string; allowed: string[] }> = {
+      admin: {
+        dashboard: '/dashboard',
+        allowed: ['/dashboard', '/ManagementData', '/ReportsMonitoring', '/Profileadmin', '/UnitsManagement', '/MapSettings', '/AttendanceReport', '/CertificateScanner']
+      },
+      supervisor: {
+        dashboard: '/dashboardsuper',
+        allowed: ['/dashboardsuper', '/Monitoringsuper', '/Profilesuper', '/assessmentsuper', '/AttendanceReport']
+      },
+      participant: {
+        dashboard: '/dashboarduser',
+        allowed: ['/dashboarduser', '/Profilepart']
       }
-    } else if (role === 'supervisor') {
-      const allowedPaths = ['/dashboardsuper', '/Monitoringsuper', '/Profilesuper'];
-      const isAllowed = allowedPaths.some(path => pathname === path || pathname.startsWith(`${path}/`));
+    };
+
+    const config = roleConfig[role];
+    if (config) {
+      const isAllowed = config.allowed.some(path => pathname === path || pathname.startsWith(`${path}/`));
       if (!isAllowed) {
-        router.push('/dashboardsuper');
+        console.warn(`[AuthGuard] Path ${pathname} not allowed for role ${role}. Redirecting to ${config.dashboard}`);
+        router.push(config.dashboard);
       }
-    } else if (role === 'participant') {
-      const allowedPaths = ['/dashboarduser', '/Profilepart'];
-      const isAllowed = allowedPaths.some(path => pathname === path || pathname.startsWith(`${path}/`));
-      if (!isAllowed) {
-        router.push('/dashboarduser');
-      }
+    } else {
+      console.error(`[AuthGuard] Unknown role: ${role}. Logging out.`);
+      router.push('/login');
     }
-    // eslint-disable-next-line
   }, [session, router, pathname, status]);
 
-  if (status == 'loading' || !session?.user) return <Loader />;
+  if (status === 'loading' || !session?.user) return <Loader />;
 
   return <>{children}</>;
 };

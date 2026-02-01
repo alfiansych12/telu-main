@@ -1,109 +1,123 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
-import dynamic from 'next/dynamic';
 import { useSession } from 'next-auth/react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 // MATERIAL - UI
 import {
   Grid,
-  Typography,
   Box,
-  Button,
   CircularProgress,
   Stack,
-  Avatar,
-  Chip,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  IconButton
+  Typography,
 } from '@mui/material';
-import { useTheme, alpha } from '@mui/material/styles';
+import { createNotification } from 'utils/api/notifications';
 
 // PROJECT IMPORTS
-import MainCard from 'components/MainCard';
-import { getAttendances, createAttendance, updateAttendance } from 'utils/api/attendances';
-import { getCheckInLocation } from 'utils/api/settings';
-import { getMonitoringRequests } from 'utils/api/monitoring';
-import { getUserById } from 'utils/api/users';
+import { createAttendance, updateAttendance } from 'utils/api/attendances';
+import { getCertificateEligibility } from 'utils/api/certificate';
 import { openAlert } from 'api/alert';
 import OutAreaRequestDialog from 'components/OutAreaRequestDialog';
+import LeaveRequestDialog from 'components/LeaveRequestDialog';
+import { generateCertificatePDF } from 'utils/certificateGenerator';
+import { formatInJakarta } from 'utils/date-tz';
+import { getParticipantDashboardData } from 'utils/api/batch';
+import { AttendanceWithRelations } from 'types/api';
 
-// ICONS
-import { Location, Timer1, Calendar, DirectNotification, GalleryAdd, Trash, Personalcard, Buildings, Activity } from 'iconsax-react';
+// LOCAL COMPONENTS
+import InternshipWaitingState from './components/InternshipWaitingState';
+import InternshipFinishedState from './components/InternshipFinishedState';
+import ParticipantDashboardHeader from './components/ParticipantDashboardHeader';
+import ParticipantStatusCards from './components/ParticipantStatusCards';
+import AttendanceMapCard from './components/AttendanceMapCard';
+import AttendanceHistoryTable from './components/AttendanceHistoryTable';
+import TodayAttendanceActionCard from './components/TodayAttendanceActionCard';
 
-const MapComponent = dynamic(() => import('components/MapComponent'), {
-  ssr: false,
-  loading: () => (
-    <Box sx={{ height: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#f5f5f5', borderRadius: 2 }}>
-      <CircularProgress />
-    </Box>
-  )
-});
-
-const Alert = ({ children, severity, icon }: { children: React.ReactNode, severity: 'success' | 'info' | 'warning' | 'error', icon?: React.ReactNode }) => {
-  const theme = useTheme();
-  const color = severity === 'success' ? theme.palette.success : theme.palette.info;
-  return (
-    <Box sx={{
-      p: 1.5,
-      bgcolor: color.lighter,
-      color: color.main,
-      borderRadius: 2,
-      display: 'flex',
-      alignItems: 'center',
-      gap: 1.5,
-      border: `1px solid ${color.light}`,
-      mb: 2
-    }}>
-      {icon}
-      <Typography variant="body2" sx={{ fontWeight: 600 }}>{children}</Typography>
-    </Box>
-  );
-};
+import { useIntl, FormattedMessage } from 'react-intl';
 
 const DashboardAttendance = () => {
-  const theme = useTheme();
   const queryClient = useQueryClient();
+  const intl = useIntl();
   const [outAreaDialogOpen, setOutAreaDialogOpen] = useState(false);
+  const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [activityPlan, setActivityPlan] = useState('');
   const [attendancePhoto, setAttendancePhoto] = useState<string | null>(null);
+  const [forceCheckedOut, setForceCheckedOut] = useState(false);
   const [todayAttendanceId, setTodayAttendanceId] = useState<string | null>(null);
-
-  const today = new Date().toISOString().split('T')[0];
+  const today = formatInJakarta(new Date(), 'yyyy-MM-dd');
+  const [timeLeft, setTimeLeft] = useState<{ days: number; hours: number; minutes: number; seconds: number } | null>(null);
   const { data: session } = useSession();
   const userId = (session?.user as any)?.id;
+  const [certLoading, setCertLoading] = useState(false);
 
-  // Fetch full user profile for supervisor info
-  const { data: userProfile, isLoading: profileLoading } = useQuery({
-    queryKey: ['user-profile', userId],
-    queryFn: () => getUserById(userId),
-    enabled: !!userId
+  // Batch fetch all dashboard data
+  const { data: dashboardData, isLoading: dashboardLoading } = useQuery({
+    queryKey: ['participant-dashboard-data', userId, today],
+    queryFn: () => getParticipantDashboardData(userId, today),
+    enabled: !!userId,
+    staleTime: 60000, // 1 minute stale time
+    refetchOnWindowFocus: false // Reduce server load
   });
 
-  // Fetch admin settings for check-in location
-  const { data: locationSettings } = useQuery({
-    queryKey: ['check-in-location'],
-    queryFn: getCheckInLocation
-  });
+  const userProfile = dashboardData?.userProfile;
+  const locationSettings = dashboardData?.locationSettings;
+  const todayRequests = dashboardData?.todayRequests;
+  const attendanceData = dashboardData?.attendanceData;
+  const certEligibility = dashboardData?.certEligibility;
+
+  const profileLoading = dashboardLoading;
+  const attendanceLoading = dashboardLoading;
+  const certEligibilityLoading = dashboardLoading;
 
   const adminPosition: [number, number] = locationSettings ? [locationSettings.latitude, locationSettings.longitude] : [-6.974580, 107.630910];
   const adminAddress = locationSettings?.address || 'Jl. Telekomunikasi No.1, Sukapura, Kec. Dayeuhkolot, Kabupaten Bandung, Jawa Barat 40257';
   const adminRadius = locationSettings?.radius || 100;
 
-  // Fetch approved monitoring requests for today
-  const { data: approvedRequests } = useQuery({
-    queryKey: ['approved-monitoring-requests', userId, today],
-    queryFn: () => getMonitoringRequests({ userId: userId, status: 'approved' }),
-    enabled: !!userId
-  });
+  const latestRequest = todayRequests?.[0];
+  const isPending = latestRequest?.status === 'pending';
+  const isRejected = latestRequest?.status === 'rejected';
+
+  // Check if user has checked in today
+  const todayAttendance = useMemo(() => {
+    const attendances = Array.isArray(attendanceData) ? attendanceData : (attendanceData?.data || []);
+    return attendances.find((a: AttendanceWithRelations) => {
+      if (!a.date) return false;
+      const attDate = formatInJakarta(a.date, 'yyyy-MM-dd');
+      return attDate === today;
+    });
+  }, [attendanceData, today]);
+
+  useEffect(() => {
+    if (todayAttendance) {
+      setTodayAttendanceId(todayAttendance.id);
+    }
+  }, [todayAttendance]);
+
+  const checkedIn = !!todayAttendance?.check_in_time;
+  const checkedOut = !!todayAttendance?.check_out_time || forceCheckedOut;
+  const isOnLeave = todayAttendance?.status === 'sick' || todayAttendance?.status === 'permit';
+
+  // Internship Status Logic
+  const internshipStatus = useMemo(() => {
+    if (!userProfile) return 'active';
+    const todayDate = new Date();
+    if (userProfile.internship_start) {
+      const startDate = new Date(userProfile.internship_start);
+      startDate.setHours(8, 0, 0, 0);
+      if (todayDate < startDate) return 'waiting';
+    }
+    const hasAssessment = (userProfile as any)?.assessments?.length > 0;
+    if (userProfile.internship_end) {
+      const endDate = new Date(userProfile.internship_end);
+      endDate.setHours(23, 59, 59, 999);
+      if (todayDate > endDate || hasAssessment) return 'finished';
+    } else if (hasAssessment) {
+      return 'finished';
+    }
+    return 'active';
+  }, [userProfile]);
 
   // Get user's current location
   useEffect(() => {
@@ -111,7 +125,6 @@ const DashboardAttendance = () => {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           setUserLocation([position.coords.latitude, position.coords.longitude]);
-          console.log('📍 User Current Location Detected:', [position.coords.latitude, position.coords.longitude]);
         },
         (error) => {
           console.error('Error getting location:', error);
@@ -121,37 +134,39 @@ const DashboardAttendance = () => {
     }
   }, []);
 
-  // Fetch user's attendance history
-  const { data: attendanceData, isLoading: attendanceLoading } = useQuery({
-    queryKey: ['user-attendances', userId],
-    queryFn: () => getAttendances({ userId: userId, pageSize: 30 }),
-    enabled: !!userId
-  });
-
-  // Check if user has checked in today
-  const todayAttendance = useMemo(() => {
-    const attendances = attendanceData?.attendances || [];
-    return attendances.find(a => a.date === today);
-  }, [attendanceData, today]);
-
-  useEffect(() => {
-    if (todayAttendance) {
-      setTodayAttendanceId(todayAttendance.id);
-    }
-  }, [todayAttendance]);
-
-  // Calculate attendance rate from history
+  // Attendance Rate
   const calcAttendanceRate = useMemo(() => {
-    const records = attendanceData?.attendances || [];
+    const records = Array.isArray(attendanceData) ? attendanceData : (attendanceData?.data || []);
     if (records.length === 0) return 0;
-    const presentCount = records.filter(p => p.status === 'present' || p.status === 'late').length;
+    const presentCount = records.filter((p: AttendanceWithRelations) => p.status === 'present' || p.status === 'late').length;
     return Math.round((presentCount / records.length) * 100);
   }, [attendanceData]);
 
-  const checkedIn = !!todayAttendance?.check_in_time;
-  const checkedOut = !!todayAttendance?.check_out_time;
+  // Countdown Logic
+  useEffect(() => {
+    if (internshipStatus !== 'waiting' || !userProfile?.internship_start) return;
+    const targetDate = new Date(userProfile.internship_start);
+    targetDate.setHours(8, 0, 0, 0);
+    const timer = setInterval(() => {
+      const now = new Date().getTime();
+      const distance = targetDate.getTime() - now;
+      if (distance < 0) {
+        clearInterval(timer);
+        setTimeLeft(null);
+        queryClient.invalidateQueries({ queryKey: ['user-profile'] });
+      } else {
+        setTimeLeft({
+          days: Math.floor(distance / (1000 * 60 * 60 * 24)),
+          hours: Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
+          minutes: Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60)),
+          seconds: Math.floor((distance % (1000 * 60)) / 1000)
+        });
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [internshipStatus, userProfile, queryClient]);
 
-  // Haversine formula to calculate distance in meters
+  // Distance Calculation
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
     const R = 6371e3;
     const phi1 = lat1 * Math.PI / 180;
@@ -163,45 +178,16 @@ const DashboardAttendance = () => {
     return R * c;
   };
 
-  // Determine if user is currently out of area
   const isOutOfArea = useMemo(() => {
     if (!userLocation) return false;
-
     const distanceToAdmin = calculateDistance(userLocation[0], userLocation[1], adminPosition[0], adminPosition[1]);
-    const isInApprovedArea = approvedRequests?.some(req => {
-      const dist = calculateDistance(userLocation[0], userLocation[1], req.latitude || 0, req.longitude || 0);
+    const isInApprovedArea = todayRequests?.some(req => {
+      if (req.status !== 'approved') return false;
+      const dist = calculateDistance(userLocation[0], userLocation[1], Number(req.latitude) || 0, Number(req.longitude) || 0);
       return dist <= 100;
     });
-
     return distanceToAdmin > adminRadius && !isInApprovedArea;
-  }, [userLocation, adminPosition, adminRadius, approvedRequests]);
-
-  const handleCheckIn = () => {
-    if (!userId || todayAttendance || checkInMutation.isPending) return;
-
-    if (!userLocation) {
-      openAlert({
-        title: 'Location Required',
-        message: 'Please enable GPS/Location access to check in.',
-        variant: 'warning'
-      });
-      return;
-    }
-
-    if (isOutOfArea) {
-      openAlert({
-        title: 'Outside Check-in Area',
-        message: `You are outside the designated area. Do you want to submit a check-in request for your current location instead?`,
-        variant: 'info',
-        showCancel: true,
-        confirmText: 'Yes, Submit Request',
-        onConfirm: () => setOutAreaDialogOpen(true)
-      });
-      return;
-    }
-
-    checkInMutation.mutate();
-  };
+  }, [userLocation, adminPosition, adminRadius, todayRequests]);
 
   const checkInMutation = useMutation({
     mutationFn: async () => {
@@ -209,62 +195,221 @@ const DashboardAttendance = () => {
       return createAttendance({
         user_id: userId,
         date: today,
-        check_in_time: now.toTimeString().slice(0, 8),
-        status: 'present',
-        activity_description: JSON.stringify({
-          check_in_location: userLocation
-        })
+        check_in_time: now,
+        // Don't set status here - let backend determine based on time
+        activity_description: JSON.stringify({ check_in_location: userLocation })
       } as any);
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['user-attendances'] });
+      queryClient.invalidateQueries({ queryKey: ['participant-dashboard-data'] });
       setTodayAttendanceId(data.id);
-      openAlert({ title: 'Checked In!', message: 'You have successfully checked in.', variant: 'success' });
+
+      // Show different message based on status
+      let message = intl.formatMessage({ id: 'dashboard.attendance.checkin_success' });
+      let variant: 'success' | 'warning' | 'error' = 'success';
+
+      if (data.status === 'late') {
+        message = intl.formatMessage({ id: 'dashboard.attendance.checkin_late' });
+        variant = 'warning';
+      } else if (data.status === 'absent') {
+        message = intl.formatMessage({ id: 'dashboard.attendance.checkin_absent' });
+        variant = 'error';
+      }
+
+      openAlert({ title: intl.formatMessage({ id: 'Check In' }) + '!', message, variant });
+    },
+    onError: (error: any) => {
+      openAlert({
+        title: intl.formatMessage({ id: 'dashboard.attendance.checkin_error' }),
+        message: error.message || intl.formatMessage({ id: 'dashboard.attendance.checkin_error' }),
+        variant: 'error'
+      });
     }
   });
-
-  const handleCheckOut = () => {
-    if (!todayAttendanceId) return;
-
-    openAlert({
-      title: 'Confirm Check-out',
-      message: 'Are you sure you want to check-out now? Please make sure you have filled in your activity plan.',
-      variant: 'warning',
-      showCancel: true,
-      confirmText: 'Yes, Check-out',
-      onConfirm: () => checkOutMutation.mutate()
-    });
-  };
 
   const checkOutMutation = useMutation({
     mutationFn: async () => {
       const now = new Date();
-
-      // Get existing data to preserve check_in_location
-      const existingData = todayAttendance?.activity_description ? JSON.parse(todayAttendance.activity_description) : {};
-
+      let existingData = {};
+      try {
+        existingData = todayAttendance?.activity_description ? JSON.parse(todayAttendance.activity_description) : {};
+      } catch (e) {
+        existingData = { notes: todayAttendance?.activity_description };
+      }
       return updateAttendance(todayAttendanceId!, {
-        check_out_time: now.toTimeString().slice(0, 8),
-        activity_description: JSON.stringify({
-          ...existingData,
-          plan: activityPlan,
-          photo: attendancePhoto
-        })
+        check_out_time: now,
+        activity_description: JSON.stringify({ ...existingData, plan: activityPlan, photo: attendancePhoto })
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user-attendances'] });
-      setActivityPlan('');
-      setAttendancePhoto(null);
-      openAlert({ title: 'Checked Out!', message: 'You have completed your attendance.', variant: 'success' });
+      setForceCheckedOut(true);
+      queryClient.invalidateQueries({ queryKey: ['participant-dashboard-data'] });
+      openAlert({
+        title: intl.formatMessage({ id: 'Successfully Checked Out!' }),
+        message: intl.formatMessage({ id: 'dashboard.attendance.checkout_success' }),
+        variant: 'success'
+      });
+    },
+    onError: (error: any) => {
+      let errorMsg = error.message || intl.formatMessage({ id: 'dashboard.attendance.checkout_error' });
+      if (errorMsg.includes('Body exceeded 1 MB limit')) {
+        errorMsg = intl.formatMessage({ id: 'dashboard.attendance.photo_too_large' });
+      }
+      openAlert({ title: intl.formatMessage({ id: 'dashboard.attendance.checkout_error' }), message: errorMsg, variant: 'error' });
     }
   });
+
+  const handleCheckIn = () => {
+    // Only block if we already have a check-in time recorded
+    const alreadyCheckedIn = !!todayAttendance?.check_in_time;
+    if (!userId || alreadyCheckedIn || checkInMutation.isPending) return;
+
+    if (!userLocation) {
+      openAlert({
+        title: intl.formatMessage({ id: 'Location Required' }),
+        message: intl.formatMessage({ id: 'dashboard.attendance.location_required' }),
+        variant: 'warning'
+      });
+      return;
+    }
+    if (isOutOfArea) {
+      setOutAreaDialogOpen(true);
+      return;
+    }
+    checkInMutation.mutate();
+  };
+
+  // ATTENDANCE REMINDER LOGIC
+  useEffect(() => {
+    if (internshipStatus !== 'active' || checkedIn || !userId || dashboardLoading) return;
+
+    const checkReminder = async () => {
+      const now = new Date();
+      const currentHours = now.getHours();
+      const currentMinutes = now.getMinutes();
+
+      // Get settings for thresholds
+      const thresholdStr = locationSettings?.late_threshold_time || '08:15';
+      const [thHours, thMinutes] = thresholdStr.split(':').map(Number);
+
+      const absentThresholdStr = locationSettings?.absent_threshold_time || '12:00';
+      const [abHours, abMinutes] = absentThresholdStr.split(':').map(Number);
+
+      const isPastLate = currentHours > thHours || (currentHours === thHours && currentMinutes >= thMinutes);
+      const isPastAbsent = currentHours > abHours || (currentHours === abHours && currentMinutes >= abMinutes);
+
+      if (isPastLate) {
+        const notifications = dashboardData?.notifications || [];
+        const todayStr = now.toISOString().split('T')[0];
+
+        // Use different notification title based on threshold
+        const expectedTitle = isPastAbsent
+          ? intl.formatMessage({ id: 'dashboard.attendance.critical_absent' })
+          : intl.formatMessage({ id: 'dashboard.attendance.reminder' });
+        const expectedMessage = isPastAbsent
+          ? intl.formatMessage({ id: 'dashboard.attendance.past_absent_msg' }, { time: absentThresholdStr })
+          : intl.formatMessage({ id: 'dashboard.attendance.past_late_msg' }, { time: thresholdStr });
+
+        const hasThisReminder = notifications.some((n: any) =>
+          n.type === 'attendance' &&
+          n.title === expectedTitle &&
+          new Date(n.created_at).toISOString().split('T')[0] === todayStr
+        );
+
+        if (!hasThisReminder) {
+          await createNotification({
+            userId: userId,
+            title: expectedTitle,
+            message: expectedMessage,
+            type: 'attendance',
+            link: '/dashboarduser'
+          });
+          // Refresh dashboard data to include the new notification
+          queryClient.invalidateQueries({ queryKey: ['participant-dashboard-data'] });
+        }
+      }
+    };
+
+    const timer = setTimeout(checkReminder, 5000);
+    return () => clearTimeout(timer);
+  }, [internshipStatus, checkedIn, userId, dashboardData, dashboardLoading, queryClient, locationSettings, intl]);
+
+  const handleCheckOut = () => {
+    if (!todayAttendanceId) return;
+    openAlert({
+      title: intl.formatMessage({ id: 'Confirm Check-out' }),
+      message: intl.formatMessage({ id: 'dashboard.attendance.confirm_checkout_msg' }),
+      variant: 'warning',
+      showCancel: true,
+      confirmText: intl.formatMessage({ id: 'Yes, Check-out' }),
+      onConfirm: () => checkOutMutation.mutate()
+    });
+  };
+
+  const onDownloadCertificate = async () => {
+    if (!certEligibility?.eligible || !certEligibility.data) {
+      openAlert({
+        title: intl.formatMessage({ id: 'Not Available Yet' }),
+        message: certEligibility?.message || intl.formatMessage({ id: 'dashboard.attendance.cert_not_eligible' }),
+        variant: 'info'
+      });
+      return;
+    }
+    setCertLoading(true);
+    try {
+      await generateCertificatePDF(certEligibility.data as any);
+      openAlert({
+        title: intl.formatMessage({ id: 'Success' }) + '!',
+        message: intl.formatMessage({ id: 'dashboard.attendance.cert_downloading' }),
+        variant: 'success'
+      });
+    } catch (e) {
+      openAlert({
+        title: intl.formatMessage({ id: 'Error' }),
+        message: intl.formatMessage({ id: 'dashboard.attendance.cert_download_failed' }),
+        variant: 'error'
+      });
+    } finally {
+      setCertLoading(false);
+    }
+  };
+
+  const onCheckCertificate = async () => {
+    setCertLoading(true);
+    try {
+      const result = await getCertificateEligibility(userId);
+      if (result.eligible && result.data) {
+        generateCertificatePDF(result.data as any);
+        openAlert({
+          title: intl.formatMessage({ id: 'dashboard.attendance.cert_generated' }) + '!',
+          message: intl.formatMessage({ id: 'dashboard.attendance.cert_generated' }),
+          variant: 'success'
+        });
+      } else {
+        openAlert({
+          title: intl.formatMessage({ id: 'Not Eligible' }),
+          message: result.message || intl.formatMessage({ id: 'dashboard.attendance.cert_not_eligible' }),
+          variant: 'info'
+        });
+      }
+    } catch (e) {
+      openAlert({
+        title: intl.formatMessage({ id: 'Error' }),
+        message: intl.formatMessage({ id: 'dashboard.attendance.cert_eligibility_error' }),
+        variant: 'error'
+      });
+    } finally {
+      setCertLoading(false);
+    }
+  };
 
   const getStatusColor = (status: any) => {
     switch (status) {
       case 'present': return 'success';
       case 'late': return 'warning';
       case 'absent': return 'error';
+      case 'sick':
+      case 'permit': return 'info';
       default: return 'default';
     }
   };
@@ -272,270 +417,95 @@ const DashboardAttendance = () => {
   if (attendanceLoading || profileLoading) return <Box sx={{ display: 'flex', justifyContent: 'center', p: 5 }}><CircularProgress /></Box>;
 
   return (
-    <Box>
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        {/* Card 1: My Supervisor */}
-        <Grid item xs={12} sm={6} md={4}>
-          <Paper elevation={0} sx={{
-            p: 2.5,
-            borderRadius: 4,
-            background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.primary.dark})`,
-            color: '#fff',
-            position: 'relative',
-            overflow: 'hidden',
-            height: '100%',
-            boxShadow: `0 8px 24px ${alpha(theme.palette.primary.main, 0.25)}`
-          }}>
-            <Stack spacing={1}>
-              <Typography variant="h6" sx={{ opacity: 0.8, fontWeight: 500 }}>My Supervisor</Typography>
-              <Typography variant="h3" sx={{ fontWeight: 800 }}>{userProfile?.supervisor?.name || 'Not Assigned'}</Typography>
-              <Typography variant="caption" sx={{ opacity: 0.7, fontWeight: 600 }}>Report directly to this person</Typography>
-            </Stack>
-            <Personalcard size={70} variant="Bulk" style={{ position: 'absolute', right: -10, bottom: -10, opacity: 0.2 }} />
-          </Paper>
-        </Grid>
-
-        {/* Card 2: Unit & Department */}
-        <Grid item xs={12} sm={6} md={4}>
-          <Paper elevation={0} sx={{
-            p: 2.5,
-            borderRadius: 4,
-            background: `linear-gradient(45deg, ${theme.palette.success.main}, ${theme.palette.success.dark})`,
-            color: '#fff',
-            position: 'relative',
-            overflow: 'hidden',
-            height: '100%',
-            boxShadow: `0 8px 24px ${alpha(theme.palette.success.main, 0.25)}`
-          }}>
-            <Stack spacing={1}>
-              <Typography variant="h6" sx={{ opacity: 0.8, fontWeight: 500 }}>Unit / Department</Typography>
-              <Typography variant="h3" sx={{ fontWeight: 800 }}>{userProfile?.unit?.name || 'General'}</Typography>
-              <Typography variant="caption" sx={{ opacity: 0.7, fontWeight: 600 }}>{userProfile?.unit?.department || 'Department'}</Typography>
-            </Stack>
-            <Buildings size={70} variant="Bulk" style={{ position: 'absolute', right: -10, bottom: -10, opacity: 0.2 }} />
-          </Paper>
-        </Grid>
-
-        {/* Card 3: Performance Info */}
-        <Grid item xs={12} sm={6} md={4}>
-          <Paper elevation={0} sx={{
-            p: 2.5,
-            borderRadius: 4,
-            background: `linear-gradient(45deg, ${theme.palette.warning.main}, #e67e22)`,
-            color: '#fff',
-            position: 'relative',
-            overflow: 'hidden',
-            height: '100%',
-            boxShadow: `0 8px 24px ${alpha(theme.palette.warning.main, 0.25)}`
-          }}>
-            <Stack spacing={1}>
-              <Typography variant="h6" sx={{ opacity: 0.8, fontWeight: 500 }}>Attendance Rate</Typography>
-              <Typography variant="h2" sx={{ fontWeight: 800 }}>{calcAttendanceRate}%</Typography>
-              <Typography variant="caption" sx={{ opacity: 0.7, fontWeight: 600 }}>Based on last 30 recorded days</Typography>
-            </Stack>
-            <Activity size={70} variant="Bulk" style={{ position: 'absolute', right: -10, bottom: -10, opacity: 0.2 }} />
-          </Paper>
-        </Grid>
-      </Grid>
-
-      <Grid container spacing={3}>
-        <Grid item xs={12} md={8}>
-          <Stack spacing={3}>
-            <MainCard title="Attendance Map" secondary={<Chip icon={<Location size={16} />} label={adminAddress} variant="outlined" size="small" />}>
-              <Box sx={{ height: 400, width: '100%', borderRadius: 2, overflow: 'hidden' }}>
-                <MapComponent
-                  position={adminPosition}
-                  address={adminAddress}
-                  userPosition={userLocation}
-                  radius={adminRadius}
-                />
-              </Box>
-            </MainCard>
-
-            <MainCard title="Attendance History">
-              <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 2 }}>
-                <Table>
-                  <TableHead sx={{ bgcolor: theme.palette.grey[50] }}>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Date</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Check In</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Check Out</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {attendanceData?.attendances?.map((record) => (
-                      <TableRow key={record.id} hover>
-                        <TableCell>
-                          <Typography variant="body2" sx={{ fontWeight: 500 }}>{record.date}</Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2">{record.check_in_time || '-'}</Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2">{record.check_out_time || '-'}</Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Chip
-                            label={record.status}
-                            size="small"
-                            color={getStatusColor(record.status)}
-                            sx={{ textTransform: 'capitalize', fontWeight: 600, px: 1 }}
-                          />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {(!attendanceData?.attendances || attendanceData.attendances.length === 0) && (
-                      <TableRow>
-                        <TableCell colSpan={4} align="center" sx={{ py: 4 }}>
-                          <Typography variant="body2" color="textSecondary">No attendance history found</Typography>
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </MainCard>
-          </Stack>
-        </Grid>
-
-        <Grid item xs={12} md={4}>
-          <Stack spacing={3}>
-            <MainCard title="Today's Attendance">
-              {!checkedIn ? (
-                <Stack spacing={2}>
-                  <Typography variant="body2" color="textSecondary">
-                    You haven't checked in yet today. Please make sure you are within the designated area.
-                  </Typography>
-                  <Button
-                    variant="contained"
-                    fullWidth
-                    size="large"
-                    startIcon={<Timer1 />}
-                    onClick={handleCheckIn}
-                    disabled={checkInMutation.isPending}
-                  >
-                    {checkInMutation.isPending ? 'Processing...' : 'Check In Now'}
-                  </Button>
-
-                  {isOutOfArea && (
-                    <Button variant="outlined" fullWidth color="secondary" onClick={() => setOutAreaDialogOpen(true)}>
-                      Request Out-Area Check-In
-                    </Button>
-                  )}
-                </Stack>
-              ) : !checkedOut ? (
-                <Stack spacing={2}>
-                  <Alert severity="success" icon={<DirectNotification />}>
-                    Checked in at {todayAttendance?.check_in_time}
-                  </Alert>
-                  <Typography variant="subtitle2">Activity Plan / Summary</Typography>
-                  <textarea
-                    value={activityPlan}
-                    onChange={(e) => setActivityPlan(e.target.value)}
-                    placeholder="What are you working on today?"
-                    style={{
-                      width: '100%',
-                      minHeight: 100,
-                      padding: 12,
-                      borderRadius: 8,
-                      border: `1px solid ${theme.palette.divider}`,
-                      fontFamily: 'inherit',
-                      fontSize: '0.875rem'
-                    }}
-                  />
-
-                  <Typography variant="subtitle2">Evidence Photo (Optional)</Typography>
-                  {!attendancePhoto ? (
-                    <Box
-                      sx={{
-                        border: `2px dashed ${theme.palette.divider}`,
-                        borderRadius: 2,
-                        p: 3,
-                        textAlign: 'center',
-                        cursor: 'pointer',
-                        '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05), borderColor: theme.palette.primary.main }
-                      }}
-                      onClick={() => {
-                        const input = document.createElement('input');
-                        input.type = 'file';
-                        input.accept = 'image/*';
-                        input.onchange = (e: any) => {
-                          const file = e.target.files[0];
-                          if (file) {
-                            const reader = new FileReader();
-                            reader.onload = (readerEvent) => {
-                              setAttendancePhoto(readerEvent.target?.result as string);
-                            };
-                            reader.readAsDataURL(file);
-                          }
-                        };
-                        input.click();
-                      }}
-                    >
-                      <GalleryAdd size={32} style={{ opacity: 0.5, marginBottom: 8 }} />
-                      <Typography variant="caption" display="block" color="textSecondary">
-                        Click to upload or take a photo
-                      </Typography>
-                    </Box>
-                  ) : (
-                    <Box sx={{ position: 'relative', borderRadius: 2, overflow: 'hidden', height: 150 }}>
-                      <img
-                        src={attendancePhoto}
-                        alt="Attendance evidence"
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      />
-                      <IconButton
-                        size="small"
-                        sx={{ position: 'absolute', top: 8, right: 8, bgcolor: 'rgba(255,255,255,0.8)', '&:hover': { bgcolor: '#fff' } }}
-                        onClick={() => setAttendancePhoto(null)}
-                      >
-                        <Trash size={16} color={theme.palette.error.main} />
-                      </IconButton>
-                    </Box>
-                  )}
-                  <Button
-                    variant="contained"
-                    color="error"
-                    fullWidth
-                    size="large"
-                    onClick={handleCheckOut}
-                    disabled={checkOutMutation.isPending}
-                  >
-                    {checkOutMutation.isPending ? 'Processing...' : 'Check Out Now'}
-                  </Button>
-                </Stack>
-              ) : (
-                <Stack spacing={2} alignItems="center" sx={{ py: 2 }}>
-                  <Avatar sx={{ width: 64, height: 64, bgcolor: theme.palette.success.lighter, color: theme.palette.success.main, mb: 1 }}>
-                    <Calendar variant="Bold" />
-                  </Avatar>
-                  <Typography variant="h5">All Done!</Typography>
-                  <Typography variant="body2" color="textSecondary" textAlign="center">
-                    You have completed your attendance and activity record for today.
-                  </Typography>
-                  <Stack direction="row" spacing={2} sx={{ width: '100%', mt: 1 }}>
-                    <Box sx={{ flex: 1, p: 2, textAlign: 'center', bgcolor: '#f5f5f5', borderRadius: 2 }}>
-                      <Typography variant="caption" color="textSecondary">IN</Typography>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{todayAttendance?.check_in_time}</Typography>
-                    </Box>
-                    <Box sx={{ flex: 1, p: 2, textAlign: 'center', bgcolor: '#f5f5f5', borderRadius: 2 }}>
-                      <Typography variant="caption" color="textSecondary">OUT</Typography>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{todayAttendance?.check_out_time}</Typography>
-                    </Box>
-                  </Stack>
-                </Stack>
-              )}
-            </MainCard>
-          </Stack>
-        </Grid>
-
-        <OutAreaRequestDialog
-          open={outAreaDialogOpen}
-          onClose={() => setOutAreaDialogOpen(false)}
-          userId={userId || ''}
+    <Box sx={{ px: 1 }}>
+      {!dashboardData ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+          <Typography color="error" variant="h6">
+            <FormattedMessage id="dashboard.data_fetch_failed" />
+          </Typography>
+        </Box>
+      ) : internshipStatus === 'waiting' ? (
+        <InternshipWaitingState userProfile={userProfile} timeLeft={timeLeft} />
+      ) : internshipStatus === 'finished' ? (
+        <InternshipFinishedState
+          userProfile={userProfile}
+          certEligibility={certEligibility}
+          certEligibilityLoading={certEligibilityLoading}
+          certLoading={certLoading}
+          onDownloadCertificate={onDownloadCertificate}
         />
-      </Grid>
+      ) : (
+        <>
+          <ParticipantDashboardHeader
+            certEligibility={certEligibility}
+            certLoading={certLoading}
+            onDownloadCertificate={onDownloadCertificate}
+          />
+
+          <ParticipantStatusCards
+            userProfile={userProfile}
+            attendanceRate={calcAttendanceRate}
+          />
+
+          <Grid container spacing={3} justifyContent="center">
+            {!isOnLeave && (
+              <Grid item xs={12} md={8}>
+                <Stack spacing={3}>
+                  <AttendanceMapCard
+                    adminPosition={adminPosition}
+                    adminAddress={adminAddress}
+                    userLocation={userLocation}
+                    adminRadius={adminRadius}
+                  />
+                  <AttendanceHistoryTable
+                    attendances={Array.isArray(attendanceData) ? attendanceData : (attendanceData?.data || [])}
+                    getStatusColor={getStatusColor}
+                  />
+                </Stack>
+              </Grid>
+            )}
+
+            <Grid item xs={12} md={isOnLeave ? 10 : 4} lg={isOnLeave ? 8 : 4}>
+              <TodayAttendanceActionCard
+                userId={userId}
+                checkedIn={checkedIn}
+                checkedOut={checkedOut}
+                isPending={isPending}
+                isRejected={isRejected}
+                isOutOfArea={isOutOfArea}
+                latestRequest={latestRequest}
+                checkInMutationPending={checkInMutation.isPending}
+                handleCheckIn={handleCheckIn}
+                setOutAreaDialogOpen={setOutAreaDialogOpen}
+                setLeaveDialogOpen={setLeaveDialogOpen}
+                todayAttendance={todayAttendance}
+                activityPlan={activityPlan}
+                setActivityPlan={setActivityPlan}
+                attendancePhoto={attendancePhoto}
+                setAttendancePhoto={setAttendancePhoto}
+                handleCheckOut={handleCheckOut}
+                checkOutMutationPending={checkOutMutation.isPending}
+                certLoading={certLoading}
+                onCheckCertificate={onCheckCertificate}
+                locationSettings={locationSettings}
+              />
+            </Grid>
+
+            <OutAreaRequestDialog
+              open={outAreaDialogOpen}
+              onClose={() => setOutAreaDialogOpen(false)}
+              userId={userId || ''}
+            />
+
+            <LeaveRequestDialog
+              open={leaveDialogOpen}
+              onClose={() => setLeaveDialogOpen(false)}
+              userId={userId || ''}
+              supervisorName={userProfile?.supervisor?.name}
+            />
+          </Grid>
+        </>
+      )}
     </Box>
   );
 };

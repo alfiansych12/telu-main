@@ -4,6 +4,8 @@ import { NextResponse } from 'next/server';
 // PROJECT IMPORTS
 import { getserverAuthSession } from 'utils/authOptions';
 
+export const dynamic = 'force-dynamic';
+
 // ==============================|| NEXT AUTH - ROUTES  ||============================== //
 
 export async function GET(request: Request) {

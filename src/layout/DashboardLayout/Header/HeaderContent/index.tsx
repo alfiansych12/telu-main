@@ -10,6 +10,7 @@ import useMediaQuery from '@mui/material/useMediaQuery';
 // PROJECT IMPORTS
 import Profile from './Profile';
 import Localization from './Localization';
+import Notification from './Notification';
 // import MobileSection from './MobileSection';
 // import MegaMenuSection from './MegaMenuSection';
 
@@ -34,7 +35,7 @@ const HeaderContent = () => {
   // const megaMenu = useMemo(() => <MegaMenuSection />, []);
 
   return (
-    <Stack direction="row" sx={{ width: 1, justifyContent: 'space-between' }}>
+    <Stack direction="row" sx={{ flexGrow: 1, justifyContent: 'space-between', alignItems: 'center' }}>
       <Stack>{menuOrientation === MenuOrientation.HORIZONTAL && !downLG && <DrawerHeader open={true} />}</Stack>
       <Stack direction="row">
         {/* {!downLG && megaMenu} */}
@@ -42,6 +43,7 @@ const HeaderContent = () => {
         {/* <Box sx={{ width: '100%', ml: 1 }} /> */}
 
         {!downLG && <FullScreen />}
+        <Notification />
         <Profile />
         {/* {downLG && <MobileSection />} */}
       </Stack>

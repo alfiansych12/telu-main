@@ -13,7 +13,7 @@ import getDropzoneData from 'utils/getDropzoneData';
 // ==============================|| DROPZONE - REJECTION FILES ||============================== //
 
 type Props = {
-  fileRejections: FileRejection[];
+  fileRejections: readonly FileRejection[];
 };
 
 export default function RejectionFiles({ fileRejections }: Props) {

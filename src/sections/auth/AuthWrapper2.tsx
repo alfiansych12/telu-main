@@ -91,7 +91,7 @@ const AuthWrapper2 = ({ children }: Props) => {
           height: 1
         }}
       >
-        <AuthCard border={false}>{children}</AuthCard>
+        <AuthCard border={false} boxShadow={false}>{children}</AuthCard>
       </Grid>
     </Grid>
   );

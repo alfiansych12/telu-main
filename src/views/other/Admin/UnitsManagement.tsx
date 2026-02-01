@@ -6,8 +6,8 @@ import { useQuery } from '@tanstack/react-query';
 import Typography from '@mui/material/Typography';
 import MainCard from 'components/MainCard';
 import { TextField, Button, Box, CircularProgress, Alert, Grid } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
-import CustomBreadcrumbs from 'components/@extended/CustomBreadcrumbs';
+import { useTheme, alpha } from '@mui/material/styles';
+import { CalendarTick } from 'iconsax-react';
 import { getUnits } from 'utils/api/units';
 
 const UnitsManagementView = () => {
@@ -28,14 +28,25 @@ const UnitsManagementView = () => {
   });
 
   return (
-    <>
-      <MainCard border={false} shadow={theme.customShadows.z1} sx={{ mb: 3, p: 0 }}>
-        <CustomBreadcrumbs
-          items={['Dashboard', 'Units Management']}
-          showDate
-          showExport
-        />
-      </MainCard>
+    <Box sx={{ px: 1 }}>
+      <Box sx={{ mb: 3, display: 'flex', flexDirection: { xs: 'column', md: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'center' }, gap: 2 }}>
+        <Typography variant="h4" sx={{ fontWeight: 700 }}>Units Management</Typography>
+        <Box sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1.5,
+          bgcolor: alpha(theme.palette.primary.lighter, 0.2),
+          px: 2,
+          py: 1,
+          borderRadius: 2,
+          border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`
+        }}>
+          <CalendarTick size={20} color={theme.palette.primary.main} />
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: theme.palette.primary.darker }}>
+            {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+          </Typography>
+        </Box>
+      </Box>
 
       <Grid container spacing={3} sx={{ mb: 3 }}>
         <Grid item xs={12} sm={6}>
@@ -97,8 +108,8 @@ const UnitsManagementView = () => {
                 </tr>
               </thead>
               <tbody>
-                {unitsData?.units && unitsData.units.length > 0 ? (
-                  unitsData.units.map((unit) => (
+                {unitsData?.data && unitsData.data.length > 0 ? (
+                  unitsData.data.map((unit) => (
                     <tr key={unit.id}>
                       <td style={{ padding: 8 }}>{unit.name}</td>
                       <td style={{ padding: 8 }}>{unit.department}</td>
@@ -115,7 +126,7 @@ const UnitsManagementView = () => {
                           {unit.status}
                         </span>
                       </td>
-                      <td style={{ padding: 8 }}>{new Date(unit.created_at).toLocaleDateString()}</td>
+                      <td style={{ padding: 8 }}>{unit.created_at ? new Date(unit.created_at).toLocaleDateString() : '-'}</td>
                     </tr>
                   ))
                 ) : (
@@ -166,7 +177,7 @@ const UnitsManagementView = () => {
           </Box>
         </Box>
       </MainCard>
-    </>
+    </Box>
   );
 };
 

@@ -4,7 +4,6 @@ import { getserverAuthSession } from './authOptions';
 import { redirect } from 'next/navigation';
 
 const axiosServices = axios.create({ baseURL: process.env.NEXT_PUBLIC_NEXT_APP_API_URL || 'http://localhost:3001/api' });
-export const axiosLogin = axios.create({ baseURL: process.env.NEXT_PUBLIC_NEXT_APP_API_URL_LOGIN || 'https://auth-v2.telkomuniversity.ac.id/stg/api/oauth' });
 
 // ==============================|| AXIOS - FOR SERVICES ||============================== //
 
@@ -15,13 +14,15 @@ export const axiosLogin = axios.create({ baseURL: process.env.NEXT_PUBLIC_NEXT_A
 axiosServices.interceptors.request.use(async (config) => {
   if (typeof window !== 'undefined') {
     const session = await getSession();
-    if (session?.token?.accessToken) {
-      config.headers['Authorization'] = `Bearer ${session.token.accessToken}`;
+    const accessToken = (session as any)?.token?.accessToken || (session as any)?.accessToken;
+    if (accessToken) {
+      config.headers['Authorization'] = `Bearer ${accessToken}`;
     }
   } else {
     const session = await getserverAuthSession();
-    if (session?.token?.accessToken) {
-      config.headers['Authorization'] = `Bearer ${session.token.accessToken}`;
+    const accessToken = (session as any)?.token?.accessToken || (session as any)?.accessToken;
+    if (accessToken) {
+      config.headers['Authorization'] = `Bearer ${accessToken}`;
     }
   }
   return config;

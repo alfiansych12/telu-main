@@ -20,8 +20,13 @@ export default function AlertItemDelete({ item, open, handleClose }: Props) {
 
   const deletehandler = async () => {
     try {
+      setSubmit(true);
+      // Implementation logic...
     } catch (error) {
+      console.error(error);
     } finally {
+      setSubmit(false);
+      handleClose();
     }
   };
 

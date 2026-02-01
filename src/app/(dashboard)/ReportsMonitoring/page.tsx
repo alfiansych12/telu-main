@@ -1,8 +1,12 @@
 'use client';
-import ReportMonitoringView from "views/other/Admin/ReportMon";
+import dynamic from 'next/dynamic';
+import Loader from 'components/Loader';
 
-const ReportsMonitoringView = () => {
+const ReportMonitoringView = dynamic(() => import('views/other/Admin/ReportMon'), {
+  ssr: false,
+  loading: () => <Loader />
+});
+
+export default function ReportsMonitoringPage() {
   return <ReportMonitoringView />;
 }
-
-export default ReportsMonitoringView;

@@ -1,12 +1,11 @@
-import { AxiosResponse } from 'axios';
+import axios, { AxiosResponse } from 'axios';
 import endpoints from 'utils/endpoints';
 import { getServerSession, type NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import { axiosLogin } from 'utils/axios';
-import { supabase } from 'lib/supabase/client';
+import prisma from 'lib/prisma';
 
 export const authOptions: NextAuthOptions = {
-  secret: process.env.NEXTAUTH_SECRET || process.env.NEXTAUTH_SECRET_KEY,
+  secret: process.env.NEXTAUTH_SECRET || process.env.NEXT_APP_JWT_SECRET,
   providers: [
     CredentialsProvider({
       id: 'login',
@@ -24,74 +23,104 @@ export const authOptions: NextAuthOptions = {
             throw new Error('Please enter username and password');
           }
 
-          // 1. Try local authentication (Supabase)
-          const { data: localUser } = await (supabase
-            .from('users')
-            .select('*')
-            .eq('email', username)
-            .single() as any);
+          // 1. Try local authentication (Prisma)
+          const cleanUsername = username.includes('@') ? username.split('@')[0] : username;
+          const standardEmail = `${cleanUsername}@telkomuniversity.ac.id`;
 
-          if (localUser && localUser.password === password) {
-            console.log('Local login successful for:', username);
-            return {
-              id: localUser.id,
-              name: localUser.name,
-              email: localUser.email,
-              role: localUser.role,
-              unit_id: localUser.unit_id,
-              provider: 'local'
-            } as any;
+          console.log('Login attempt for:', username, 'Clean Username:', cleanUsername, 'Standard Email:', standardEmail);
+
+          const localUser = await prisma.user.findFirst({
+            where: {
+              OR: [
+                { email: { equals: username, mode: 'insensitive' } },
+                { email: { equals: standardEmail, mode: 'insensitive' } }
+              ]
+            }
+          });
+
+          console.log('Local user found:', localUser ? 'Yes' : 'No');
+
+          if (localUser) {
+            console.log('Checking password for:', localUser.email, 'Matches:', localUser.password === password);
+            if (localUser.password === password) {
+              console.log('Local login successful for:', localUser.email);
+              return {
+                id: localUser.id,
+                name: localUser.name,
+                email: localUser.email,
+                role: localUser.role,
+                unit_id: localUser.unit_id,
+                photo: (localUser as any).photo,
+                phone: (localUser as any).phone,
+                institution_name: (localUser as any).institution_name,
+                institution_type: (localUser as any).institution_type,
+                personal_email: (localUser as any).personal_email,
+                provider: 'local'
+              } as any;
+            }
           }
 
           // 2. Fallback to External SSO (Telkom University)
-          console.log('Attempting SSO login for:', username);
-          const tokenResponse: any = await authLogin(username, password);
-          const accessToken = tokenResponse?.token;
+          // Normalize username for SSO call: strip domain to ensure only core ID is sent
+          console.log('Attempting SSO login for:', cleanUsername);
+          const tokenResponse: any = await authLogin(cleanUsername, password);
+
+          // Debug: Check token response structure
+          console.log('SSO Token Response:', JSON.stringify(tokenResponse));
+
+          const accessToken = tokenResponse?.token || tokenResponse?.data?.access_token || tokenResponse?.access_token;
 
           if (!accessToken) {
-            const ssoError = tokenResponse?.response?.data?.message;
-            throw new Error(ssoError || 'Invalid credentials');
+            const ssoError = tokenResponse?.response?.data?.message || tokenResponse?.message;
+            throw new Error(ssoError || 'Invalid credentials or SSO token missing');
           }
 
           const userResponse: any = await getProfile(accessToken);
-          const userData = userResponse?.data;
 
-          if (!userData) {
-            throw new Error('SSO User profile not found.');
+          // Debug: Check profile response structure
+          console.log('SSO Profile Response:', JSON.stringify(userResponse));
+
+          // Flexible data mapping: Some APIs return data nested in .data, some don't.
+          const userData = userResponse?.data || userResponse;
+
+          if (!userData || (typeof userData === 'object' && Object.keys(userData).length === 0)) {
+            throw new Error('SSO User profile not found or empty.');
           }
 
           // 3. Sync SSO user with local users table
-          const email = userData.email || userData.username;
-          let { data: dbUser } = await (supabase
-            .from('users')
-            .select('*')
-            .eq('email', email)
-            .single() as any);
+          // Look for identifier in multiple possible fields (Tel-U SSO uses 'user' or 'numberid')
+          const identifier = userData.email || userData.username || userData.user || userData.nim || userData.numberid || userData.user_id;
+
+          if (!identifier) {
+            console.error('SSO Error: No identifier found in profile', userData);
+            throw new Error('SSO Authentication failed: No email, username, or NIM found in profile');
+          }
+
+          // Format email to be used as primary key/unique identifier
+          const email = identifier.includes('@') ? identifier : `${identifier}@telkomuniversity.ac.id`;
+
+          let dbUser = await prisma.user.findUnique({
+            where: { email: email }
+          });
 
           if (!dbUser) {
-            console.log('Creating new Admin record for SSO user:', email);
-            const { data: newUser, error: createError } = await (supabase
-              .from('users' as any)
-              .insert({
+            console.log('Creating new Participant record for SSO user:', email);
+            dbUser = await prisma.user.create({
+              data: {
                 email: email,
-                name: userData.fullname || userData.name || email,
-                role: 'admin',
+                name: userData.fullname || userData.nama || userData.name || userData.display_name || identifier,
+                role: 'participant',
                 status: 'active'
-              } as any)
-              .select('*')
-              .single() as any);
-
-            if (createError) console.error('Error creating admin user:', createError);
-            dbUser = newUser;
+              }
+            });
           }
 
           return {
-            id: dbUser?.id || userData.id,
-            name: dbUser?.name || userData.fullname || userData.name,
+            id: dbUser?.id || userData.id || identifier,
+            name: dbUser?.name || userData.fullname || userData.nama || userData.name,
             email: email,
-            role: dbUser?.role || 'admin',
+            role: dbUser?.role || 'participant',
             unit_id: dbUser?.unit_id,
-            accessToken: accessToken,
             provider: 'sso'
           } as any;
 
@@ -103,21 +132,49 @@ export const authOptions: NextAuthOptions = {
     })
   ],
   callbacks: {
-    jwt: async ({ token, user, account }) => {
+    jwt: async ({ token, user, account, trigger, session }) => {
+      // Handle session update from client
+      if (trigger === 'update' && session) {
+        // Only merge essential fields
+        return {
+          ...token,
+          name: session.name || token.name,
+          email: session.email || token.email,
+          role: session.role || token.role
+        };
+      }
+
       if (user) {
-        token = { ...user };
+        // Only store essential user data in JWT to prevent cookie overflow
+        const userData = user as any;
+        token.id = userData.id;
+        token.name = userData.name;
+        token.email = userData.email;
+        token.role = userData.role;
+        token.unit_id = userData.unit_id;
         token.provider = account?.provider;
       }
       return token;
     },
     session: ({ session, token }) => {
       if (token) {
+        console.log('[AUTH] Session callback - Token found for:', token.email);
+        // Only pass essential data to session
+        session.user = {
+          id: token.id,
+          name: token.name,
+          email: token.email,
+          role: token.role,
+          unit_id: token.unit_id
+        } as any;
+
         session.provider = token.provider;
-        session.token = token;
-        // @ts-ignore
-        session.user.role = token.role;
-        // @ts-ignore
-        session.user.id = token.id;
+
+        // Store minimal token info
+        session.token = {
+          id: token.id,
+          role: token.role
+        } as any;
       }
       return session;
     },
@@ -131,12 +188,19 @@ export const authOptions: NextAuthOptions = {
     maxAge: Number(process.env.NEXT_APP_JWT_TIMEOUT || 86400)
   },
   jwt: {
-    secret: process.env.NEXT_APP_JWT_SECRET
+    secret: process.env.NEXTAUTH_SECRET || process.env.NEXT_APP_JWT_SECRET,
+    maxAge: Number(process.env.NEXT_APP_JWT_TIMEOUT || 86400)
   },
   pages: {
     signIn: '/login'
   }
 };
+
+// ==============================|| AXIOS LOGIN INSTANCE ||============================== //
+
+const axiosLogin = axios.create({
+  baseURL: process.env.NEXT_PUBLIC_NEXT_APP_API_URL_LOGIN || 'https://auth-v2.telkomuniversity.ac.id/stg/api/oauth/'
+});
 
 export async function authLogin(username: string | undefined, password: string | undefined) {
   try {
@@ -146,7 +210,7 @@ export async function authLogin(username: string | undefined, password: string |
     });
     return data;
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Login API Error:', error);
     return error;
   }
 }
@@ -160,9 +224,20 @@ export async function getProfile(token: string) {
     });
     return data;
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Profile API Error:', error);
     return error;
   }
 }
 
-export const getserverAuthSession = () => getServerSession(authOptions);
+export async function getserverAuthSession() {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session) {
+      console.warn('[AUTH] getserverAuthSession - Session is null. Host:', process.env.NEXTAUTH_URL);
+    }
+    return session;
+  } catch (error) {
+    console.error('[AUTH] Error getting session:', error);
+    return null;
+  }
+}

@@ -9,21 +9,17 @@ import Box from '@mui/material/Box';
 
 // project-imports
 import { useGetMenuMaster } from 'api/menu';
-// import Avatar from 'components/@extended/Avatar';
-// import useUser from 'hooks/useUser';
+import { useQueryClient } from '@tanstack/react-query';
 
 // assets
 import { Button, Tooltip } from '@mui/material';
 import { Logout } from 'iconsax-react';
 import { handleLogout } from 'utils/client-actions';
 
-// const avatar1 = '/assets/images/users/avatar-1.png';
-
-// ==============================|| LIST - USER ||============================== //
+// ... (rest of the imports)
 
 export default function NavUser() {
-  // const user = useUser();
-
+  const queryClient = useQueryClient();
   const { menuMaster } = useGetMenuMaster();
   const drawerOpen = menuMaster.isDashboardDrawerOpened;
   return (
@@ -38,31 +34,8 @@ export default function NavUser() {
         alignItems: 'center'
       }}
     >
-      {/* <List disablePadding>
-        <ListItem
-          disablePadding
-          sx={{
-            ...(!drawerOpen && { display: 'flex', justifyContent: 'flex-end' }),
-            '& .MuiListItemSecondaryAction-root': { right: !drawerOpen ? 16 : -16 }
-          }}
-        >
-          <ListItemAvatar>
-            <Avatar alt="Avatar" src={avatar1} sx={{ ...(drawerOpen && { width: 46, height: 46 }) }} />
-          </ListItemAvatar>
-          <ListItemText
-            primary={user ? user?.username : ''}
-            sx={{ ...(!drawerOpen && { display: 'none' }) }}
-            secondary={user ? user?.role : ''}
-          />
-        </ListItem>
-      </List> */}
-      {/* <Tooltip title="Logout">
-        <IconButton size="large" color="error" sx={{ p: 1 }} onClick={handleLogout}>
-          <Logout variant="Bulk" />
-        </IconButton>
-      </Tooltip> */}
       <Tooltip title="Logout">
-        <Button endIcon={<Logout variant="Bulk" />} sx={{ fontWeight: 'regular' }} fullWidth onClick={handleLogout}>
+        <Button endIcon={<Logout variant="Bulk" />} sx={{ fontWeight: 'regular' }} fullWidth onClick={() => handleLogout(queryClient)}>
           Log Out
         </Button>
       </Tooltip>

@@ -1,0 +1,8 @@
+-- AlterTable
+ALTER TABLE "assessments" ADD COLUMN     "category" VARCHAR(50) NOT NULL DEFAULT 'internal',
+ALTER COLUMN "soft_skill" SET DEFAULT '0',
+ALTER COLUMN "soft_skill" SET DATA TYPE VARCHAR(50),
+ALTER COLUMN "hard_skill" SET DEFAULT '0',
+ALTER COLUMN "hard_skill" SET DATA TYPE VARCHAR(50),
+ALTER COLUMN "attitude" SET DEFAULT '0',
+ALTER COLUMN "attitude" SET DATA TYPE VARCHAR(50);

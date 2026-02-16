@@ -18,7 +18,7 @@ import {
     CircularProgress
 } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
-import { Edit, Trash, Chart } from 'iconsax-react';
+import { Edit, Trash, Chart, InfoCircle } from 'iconsax-react';
 
 interface AssessmentTableProps {
     assessments: any[];
@@ -27,7 +27,9 @@ interface AssessmentTableProps {
     onDelete: (id: string) => void;
     deleteMutation: any;
     assessmentToDelete: string | null;
-    getScoreLabel: (score: number) => { label: string; color: string };
+    getScoreLabel: (score: number | string) => { label: string; color: string };
+    criteria: any; // Global default criteria
+    templates: Record<string, any>; // Institution-specific templates
 }
 
 const AssessmentTable = ({
@@ -37,9 +39,28 @@ const AssessmentTable = ({
     onDelete,
     deleteMutation,
     assessmentToDelete,
-    getScoreLabel
+    getScoreLabel,
+    criteria: globalCriteria,
+    templates
 }: AssessmentTableProps) => {
     const theme = useTheme();
+
+    /**
+     * Resolve the criteria for a specific row based on its user's institution
+     */
+    const getRowCriteria = (row: any) => {
+        const institutionType = row.user?.institution_type;
+        if (institutionType && templates[institutionType]) {
+            return {
+                criteria: templates[institutionType],
+                isCustom: true
+            };
+        }
+        return {
+            criteria: globalCriteria,
+            isCustom: false
+        };
+    };
 
     return (
         <TableContainer component={Paper} elevation={0} sx={{
@@ -68,10 +89,11 @@ const AssessmentTable = ({
                     }}>
                         <TableRow>
                             <TableCell sx={{ py: 2, fontWeight: 700, color: 'text.secondary', fontSize: '0.75rem' }}>INTERN PERSON</TableCell>
+                            <TableCell align="center" sx={{ py: 2, fontWeight: 700, color: 'text.secondary', fontSize: '0.75rem' }}>TYPE</TableCell>
                             <TableCell align="center" sx={{ py: 2, fontWeight: 700, color: 'text.secondary', fontSize: '0.75rem' }}>PERIOD</TableCell>
-                            <TableCell align="center" sx={{ py: 2, fontWeight: 700, color: 'text.secondary', fontSize: '0.75rem' }}>SOFT SKILL</TableCell>
-                            <TableCell align="center" sx={{ py: 2, fontWeight: 700, color: 'text.secondary', fontSize: '0.75rem' }}>HARD SKILL</TableCell>
-                            <TableCell align="center" sx={{ py: 2, fontWeight: 700, color: 'text.secondary', fontSize: '0.75rem' }}>ATTITUDE</TableCell>
+                            <TableCell align="center" sx={{ py: 2, fontWeight: 700, color: 'text.secondary', fontSize: '0.75rem', maxWidth: 100 }}>INDICATOR 1</TableCell>
+                            <TableCell align="center" sx={{ py: 2, fontWeight: 700, color: 'text.secondary', fontSize: '0.75rem', maxWidth: 100 }}>INDICATOR 2</TableCell>
+                            <TableCell align="center" sx={{ py: 2, fontWeight: 700, color: 'text.secondary', fontSize: '0.75rem', maxWidth: 100 }}>INDICATOR 3</TableCell>
                             <TableCell align="center" sx={{ py: 2, fontWeight: 700, color: 'text.secondary', fontSize: '0.75rem' }}>PERFORMANCE AVERAGE</TableCell>
                             <TableCell align="center" sx={{ py: 2, fontWeight: 700, color: 'text.secondary', fontSize: '0.75rem' }}>ACTIONS</TableCell>
                         </TableRow>
@@ -79,7 +101,7 @@ const AssessmentTable = ({
                     <TableBody>
                         {assessments?.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={7} align="center" sx={{ py: 12 }}>
+                                <TableCell colSpan={8} align="center" sx={{ py: 12 }}>
                                     <Stack spacing={1} alignItems="center">
                                         <Chart size={48} variant="Bulk" color={theme.palette.divider} />
                                         <Typography variant="h6" color="textSecondary" sx={{ fontWeight: 600 }}>No Assessments Found</Typography>
@@ -89,8 +111,44 @@ const AssessmentTable = ({
                             </TableRow>
                         ) : (
                             assessments?.map((row: any) => {
-                                const avg = (row.soft_skill + row.hard_skill + row.attitude) / 3;
+                                const { criteria: rowCriteria, isCustom } = getRowCriteria(row);
+                                const currentCat = row.category || 'internal';
+                                const catCriteria = rowCriteria?.[currentCat] || [];
+
+                                // Helper to get value for an indicator based on its key in the criteria
+                                const getVal = (idx: number) => {
+                                    const key = catCriteria[idx]?.key;
+                                    if (row.scores && key && row.scores[key] !== undefined) return row.scores[key];
+                                    // Fallback to standard fields
+                                    if (idx === 0) return row.soft_skill;
+                                    if (idx === 1) return row.hard_skill;
+                                    if (idx === 2) return row.attitude;
+                                    return '0';
+                                };
+
+                                const s1 = getVal(0);
+                                const s2 = getVal(1);
+                                const s3 = getVal(2);
+
+                                const soft = parseFloat(s1 || '0');
+                                const hard = parseFloat(s2 || '0');
+                                const att = parseFloat(s3 || '0');
+
+                                // Calculate average more accurately: 
+                                // if we have row.scores, average all numeric values there. 
+                                // Otherwise average the 3 standard ones.
+                                let avg = (soft + hard + att) / 3;
+                                if (row.scores && typeof row.scores === 'object') {
+                                    const numericVals = Object.values(row.scores)
+                                        .filter(v => v !== null && v !== '' && !isNaN(parseFloat(v as string)))
+                                        .map(v => parseFloat(v as string));
+                                    if (numericVals.length > 0) {
+                                        avg = numericVals.reduce((a, b) => a + b, 0) / numericVals.length;
+                                    }
+                                }
+
                                 const status = getScoreLabel(avg);
+
                                 return (
                                     <TableRow
                                         key={row.id}
@@ -119,11 +177,36 @@ const AssessmentTable = ({
                                                     <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'text.primary', lineHeight: 1.2 }}>
                                                         {row.user?.name}
                                                     </Typography>
-                                                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500 }}>
-                                                        {row.user?.unit?.name || 'Unassigned Unit'}
-                                                    </Typography>
+                                                    <Stack direction="row" spacing={0.5} alignItems="center">
+                                                        <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500 }}>
+                                                            {row.user?.unit?.name || 'Unassigned Unit'}
+                                                        </Typography>
+                                                        {row.user?.institution_type && (
+                                                            <>
+                                                                <Typography variant="caption" color="textDisabled">•</Typography>
+                                                                <Typography variant="caption" sx={{ color: theme.palette.primary.main, fontWeight: 700 }}>
+                                                                    {row.user.institution_type}
+                                                                </Typography>
+                                                            </>
+                                                        )}
+                                                    </Stack>
                                                 </Box>
                                             </Stack>
+                                        </TableCell>
+
+                                        <TableCell align="center">
+                                            <Chip
+                                                label={currentCat.toUpperCase()}
+                                                size="small"
+                                                variant="filled"
+                                                color={currentCat === 'external' ? 'secondary' : 'primary'}
+                                                sx={{
+                                                    borderRadius: 1.5,
+                                                    fontSize: '0.65rem',
+                                                    fontWeight: 800,
+                                                    height: 20
+                                                }}
+                                            />
                                         </TableCell>
 
                                         <TableCell align="center">
@@ -143,35 +226,44 @@ const AssessmentTable = ({
 
                                         <TableCell align="center">
                                             <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
-                                                <Typography variant="body2" sx={{ fontWeight: 800, color: row.soft_skill >= 80 ? 'success.main' : 'text.primary' }}>
-                                                    {row.soft_skill}
+                                                <Typography variant="body2" sx={{ fontWeight: 800, color: (catCriteria[0]?.type === 'number' && soft >= 80) ? 'success.main' : 'text.primary' }}>
+                                                    {s1}
                                                 </Typography>
-                                                <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'text.disabled', fontWeight: 700 }}>SOFT</Typography>
+                                                <Typography variant="caption" sx={{ fontSize: '0.65rem', color: isCustom ? theme.palette.info.main : 'text.disabled', fontWeight: 700, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                    {rowCriteria?.[currentCat]?.[0]?.label || 'SOFT'}
+                                                    {isCustom && <InfoCircle size={10} />}
+                                                </Typography>
                                             </Box>
                                         </TableCell>
 
                                         <TableCell align="center">
                                             <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
-                                                <Typography variant="body2" sx={{ fontWeight: 800, color: row.hard_skill >= 80 ? 'success.main' : 'text.primary' }}>
-                                                    {row.hard_skill}
+                                                <Typography variant="body2" sx={{ fontWeight: 800, color: (catCriteria[1]?.type === 'number' && hard >= 80) ? 'success.main' : 'text.primary' }}>
+                                                    {s2}
                                                 </Typography>
-                                                <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'text.disabled', fontWeight: 700 }}>HARD</Typography>
+                                                <Typography variant="caption" sx={{ fontSize: '0.65rem', color: isCustom ? theme.palette.info.main : 'text.disabled', fontWeight: 700, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                    {rowCriteria?.[currentCat]?.[1]?.label || 'HARD'}
+                                                    {isCustom && <InfoCircle size={10} />}
+                                                </Typography>
                                             </Box>
                                         </TableCell>
 
                                         <TableCell align="center">
                                             <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
-                                                <Typography variant="body2" sx={{ fontWeight: 800, color: row.attitude >= 80 ? 'success.main' : 'text.primary' }}>
-                                                    {row.attitude}
+                                                <Typography variant="body2" sx={{ fontWeight: 800, color: (catCriteria[2]?.type === 'number' && att >= 80) ? 'success.main' : 'text.primary' }}>
+                                                    {s3}
                                                 </Typography>
-                                                <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'text.disabled', fontWeight: 700 }}>ATTITUDE</Typography>
+                                                <Typography variant="caption" sx={{ fontSize: '0.65rem', color: isCustom ? theme.palette.info.main : 'text.disabled', fontWeight: 700, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                    {rowCriteria?.[currentCat]?.[2]?.label || 'ATT'}
+                                                    {isCustom && <InfoCircle size={10} />}
+                                                </Typography>
                                             </Box>
                                         </TableCell>
 
                                         <TableCell align="center">
                                             <Stack alignItems="center" spacing={0.5}>
                                                 <Typography variant="h5" sx={{ fontWeight: 900, color: theme.palette[status.color as 'primary' | 'success' | 'warning' | 'error']?.main || 'primary.main' }}>
-                                                    {avg.toFixed(1)}
+                                                    {isNaN(avg) ? '-' : avg.toFixed(1)}
                                                 </Typography>
                                                 <Chip
                                                     label={status.label}

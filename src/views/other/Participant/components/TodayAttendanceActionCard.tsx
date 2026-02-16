@@ -12,7 +12,7 @@ import {
     Chip
 } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
-import { Timer1, Calendar, DirectNotification, GalleryAdd, Trash, CloseCircle, Award, Location, TickCircle } from 'iconsax-react';
+import { Timer1, Calendar, DirectNotification, GalleryAdd, Trash, CloseCircle, Award, Location, TickCircle, Clock } from 'iconsax-react';
 import MainCard from 'components/MainCard';
 import ParticipantLeaveHistory from 'components/ParticipantLeaveHistory';
 import { formatTime } from 'utils/format';
@@ -62,6 +62,7 @@ interface TodayAttendanceActionCardProps {
     certLoading: boolean;
     onCheckCertificate: () => Promise<void>;
     locationSettings?: any;
+    pendingLeaves?: any[];
 }
 
 const TodayAttendanceActionCard = ({
@@ -85,7 +86,8 @@ const TodayAttendanceActionCard = ({
     checkOutMutationPending,
     certLoading,
     onCheckCertificate,
-    locationSettings
+    locationSettings,
+    pendingLeaves
 }: TodayAttendanceActionCardProps) => {
     const theme = useTheme();
     const intl = useIntl();
@@ -99,16 +101,35 @@ const TodayAttendanceActionCard = ({
 
     const isOnLeave = todayAttendance?.status === 'sick' || todayAttendance?.status === 'permit';
 
+    const activePendingLeave = React.useMemo(() => {
+        if (!pendingLeaves || pendingLeaves.length === 0) return null;
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = now.getMonth();
+        const date = now.getDate();
+
+        const todayStart = new Date(year, month, date, 0, 0, 0, 0);
+        const todayEnd = new Date(year, month, date, 23, 59, 59, 999);
+
+        return pendingLeaves.find(req => {
+            const start = new Date(req.start_date);
+            const end = new Date(req.end_date);
+            return (start <= todayEnd && end >= todayStart);
+        });
+    }, [pendingLeaves]);
+
+    const isPendingLeaveToday = !!activePendingLeave;
+
     return (
         <MainCard title={intl.formatMessage({ id: "dashboard.attendance.today" })}>
-            {isOnLeave ? (
+            {(isOnLeave || isPendingLeaveToday) ? (
                 <Box sx={{
                     py: 3,
                     px: 3,
                     textAlign: 'center',
-                    background: alpha(theme.palette.info.lighter, 0.3),
+                    background: alpha(isPendingLeaveToday ? theme.palette.warning.lighter : theme.palette.info.lighter, 0.3),
                     borderRadius: 4,
-                    border: `1px solid ${alpha(theme.palette.info.light, 0.5)}`,
+                    border: `1px solid ${alpha(isPendingLeaveToday ? theme.palette.warning.light : theme.palette.info.light, 0.5)}`,
                     position: 'relative',
                     overflow: 'hidden',
                     '&::before': {
@@ -119,7 +140,7 @@ const TodayAttendanceActionCard = ({
                         width: 150,
                         height: 150,
                         borderRadius: '50%',
-                        background: `linear-gradient(135deg, ${alpha(theme.palette.info.main, 0.15)} 0%, transparent 100%)`,
+                        background: `linear-gradient(135deg, ${alpha(isPendingLeaveToday ? theme.palette.warning.main : theme.palette.info.main, 0.15)} 0%, transparent 100%)`,
                         zIndex: 0
                     }
                 }}>
@@ -128,12 +149,14 @@ const TodayAttendanceActionCard = ({
                             <Avatar sx={{
                                 width: 70,
                                 height: 70,
-                                background: `linear-gradient(135deg, ${theme.palette.info.main} 0%, ${theme.palette.info.dark} 100%)`,
+                                background: isPendingLeaveToday
+                                    ? `linear-gradient(135deg, ${theme.palette.warning.main} 0%, ${theme.palette.warning.dark} 100%)`
+                                    : `linear-gradient(135deg, ${theme.palette.info.main} 0%, ${theme.palette.info.dark} 100%)`,
                                 color: '#fff',
-                                boxShadow: `0 4px 12px ${alpha(theme.palette.info.main, 0.2)}`,
+                                boxShadow: `0 4px 12px ${alpha(isPendingLeaveToday ? theme.palette.warning.main : theme.palette.info.main, 0.2)}`,
                                 mb: 0.5
                             }}>
-                                <Calendar size={36} variant="Bulk" />
+                                {isPendingLeaveToday ? <Clock size={36} variant="Bulk" /> : <Calendar size={36} variant="Bulk" />}
                             </Avatar>
                             <Box sx={{
                                 position: 'absolute',
@@ -144,27 +167,48 @@ const TodayAttendanceActionCard = ({
                                 p: 0.3,
                                 boxShadow: theme.shadows[1]
                             }}>
-                                <TickCircle size={20} color={theme.palette.success.main} variant="Bold" />
+                                {isPendingLeaveToday
+                                    ? <Timer1 size={20} color={theme.palette.warning.main} variant="Bold" />
+                                    : <TickCircle size={20} color={theme.palette.success.main} variant="Bold" />
+                                }
                             </Box>
                         </Box>
 
                         <Box>
-                            <Typography variant="h4" sx={{ fontWeight: 800, color: theme.palette.info.dark, mb: 0.5, letterSpacing: '-0.5px' }}>
-                                <FormattedMessage id="dashboard.attendance.time_to_rest" />
+                            <Typography variant="h4" sx={{ fontWeight: 800, color: isPendingLeaveToday ? theme.palette.warning.dark : theme.palette.info.dark, mb: 0.5, letterSpacing: '-0.5px' }}>
+                                {isPendingLeaveToday
+                                    ? <FormattedMessage id="Request Processing" defaultMessage="Permintaan Sedang Diproses" />
+                                    : <FormattedMessage id="dashboard.attendance.time_to_rest" />
+                                }
                             </Typography>
                             <Typography variant="body2" sx={{ color: theme.palette.text.secondary, fontWeight: 500, maxWidth: 400, mx: 'auto', mb: 1.5 }}>
-                                <FormattedMessage
-                                    id="dashboard.attendance.on_leave"
-                                    values={{
-                                        status: <span style={{ color: theme.palette.info.main, fontWeight: 700 }}>
-                                            {todayAttendance.status === 'sick' ? intl.formatMessage({ id: 'Sick Leave' }) : intl.formatMessage({ id: 'Permit' })}
-                                        </span>
-                                    }}
-                                />
+                                {isPendingLeaveToday ? (
+                                    <FormattedMessage
+                                        id="dashboard.attendance.pending_leave_msg"
+                                        defaultMessage="Permintaan {status} Anda sedang menunggu persetujuan supervisor."
+                                        values={{
+                                            status: <span style={{ color: theme.palette.warning.main, fontWeight: 700 }}>
+                                                {activePendingLeave?.type === 'sick' ? intl.formatMessage({ id: 'Sick Leave' }) : intl.formatMessage({ id: 'Permit' })}
+                                            </span>
+                                        }}
+                                    />
+                                ) : (
+                                    <FormattedMessage
+                                        id="dashboard.attendance.on_leave"
+                                        values={{
+                                            status: <span style={{ color: theme.palette.info.main, fontWeight: 700 }}>
+                                                {todayAttendance.status === 'sick' ? intl.formatMessage({ id: 'Sick Leave' }) : intl.formatMessage({ id: 'Permit' })}
+                                            </span>
+                                        }}
+                                    />
+                                )}
                             </Typography>
                             <Chip
-                                label={intl.formatMessage({ id: "Attendance Auto-Recorded" })}
-                                color="info"
+                                label={isPendingLeaveToday
+                                    ? intl.formatMessage({ id: "Waiting Approval" })
+                                    : intl.formatMessage({ id: "Attendance Auto-Recorded" })
+                                }
+                                color={isPendingLeaveToday ? "warning" : "info"}
                                 variant="outlined"
                                 size="small"
                                 sx={{
@@ -179,13 +223,16 @@ const TodayAttendanceActionCard = ({
                             />
                         </Box>
 
-                        <Alert severity="info" icon={<DirectNotification size={18} />}>
-                            <FormattedMessage id="No check-in or check-out required today." />
+                        <Alert severity={isPendingLeaveToday ? "warning" : "info"} icon={isPendingLeaveToday ? <Clock size={18} /> : <DirectNotification size={18} />}>
+                            {isPendingLeaveToday
+                                ? <FormattedMessage id="Check-in/out blocked while waiting for approval." defaultMessage="Check-in/out dinonaktifkan sementara menunggu persetujuan." />
+                                : <FormattedMessage id="No check-in or check-out required today." />
+                            }
                         </Alert>
 
                         <Box sx={{ width: '100%', mt: 2, pt: 2, borderTop: `1px dashed ${alpha(theme.palette.divider, 0.6)}` }}>
                             <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <Timer1 size={18} variant="Bold" color={theme.palette.info.main} />
+                                <Timer1 size={18} variant="Bold" color={isPendingLeaveToday ? theme.palette.warning.main : theme.palette.info.main} />
                                 <FormattedMessage id="Recent Requests" />
                             </Typography>
                             <ParticipantLeaveHistory userId={userId} />
@@ -209,13 +256,13 @@ const TodayAttendanceActionCard = ({
                         </Alert>
                     )}
 
-                    {!isPending && !isRejected && isOutOfArea && (
+                    {isOutOfArea && !isPending && !isRejected && (
                         <Alert severity="warning" icon={<Location size={20} />}>
-                            <FormattedMessage id="dashboard.attendance.out_area_warning" />
+                            <FormattedMessage id="dashboard.attendance.out_area_warning" defaultMessage="You are outside the check-in area." />
                         </Alert>
                     )}
 
-                    {isPastAbsent && (
+                    {isPastAbsent && !isOnLeave && !checkedIn && (
                         <Alert severity="error" icon={<CloseCircle size={20} />}>
                             <FormattedMessage id="dashboard.attendance.late_warning" values={{ time: locationSettings?.absent_threshold_time }} />
                         </Alert>
@@ -233,7 +280,7 @@ const TodayAttendanceActionCard = ({
                         fullWidth
                         size="large"
                         color={isPastAbsent || (isRejected && isOutOfArea) ? "error" : "primary"}
-                        startIcon={isRejected && isOutOfArea ? <CloseCircle /> : <Timer1 />}
+                        startIcon={isRejected && isOutOfArea ? <CloseCircle /> : (isPastAbsent ? <Clock /> : <Timer1 />)}
                         onClick={handleCheckIn}
                         disabled={checkInMutationPending || isPending}
                     >

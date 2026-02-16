@@ -2,7 +2,7 @@
 'use server';
 
 import prisma from 'lib/prisma';
-import { getCertificateSettings } from './settings';
+import { getCertificateSettings, getCriteriaForUser, getAssessmentTemplates } from './settings';
 import { getserverAuthSession } from 'utils/authOptions';
 
 export async function getCertificateEligibility(userId: string) {
@@ -39,7 +39,13 @@ export async function getCertificateEligibility(userId: string) {
         }
 
         // Check if assessment exists
-        const assessment = user.assessments[0]; // Take the latest assessment
+        // Check if assessment exists - prioritize 'internal' category
+        let assessment = user.assessments.find((a: any) => (a.category || 'internal') === 'internal');
+
+        // If no internal assessment, take the latest one (which might be external)
+        if (!assessment) {
+            assessment = user.assessments[0];
+        }
 
         if (!assessment) {
             return {
@@ -49,16 +55,7 @@ export async function getCertificateEligibility(userId: string) {
             };
         }
 
-        const averageScore = Math.round(
-            (assessment.soft_skill + assessment.hard_skill + assessment.attitude) / 3
-        );
 
-        // Grade calculation
-        let grade = 'C';
-        if (averageScore >= 85) grade = 'A';
-        else if (averageScore >= 75) grade = 'B';
-        else if (averageScore >= 60) grade = 'C';
-        else grade = 'D';
 
         // Generate a persistent unique 9-digit number from assessment ID
         // Simple hash function to get a numeric value from UUID
@@ -73,7 +70,63 @@ export async function getCertificateEligibility(userId: string) {
         const certNo = `No: ${uniqueNumber}/INTERN-PUTI/Tel-U/${new Date().getFullYear()}`;
 
         // Get certificate settings for HR officer info
-        const certSettings = await getCertificateSettings();
+        const [certSettings, criteria] = await Promise.all([
+            getCertificateSettings(),
+            getCriteriaForUser(userId)
+        ]);
+
+        const internalData = (() => {
+            const internal = user.assessments.find(a => (a as any).category === 'internal');
+            if (!internal) return null;
+            const rawScores = (internal as any).scores || {};
+            const scores = {
+                soft_skill: rawScores.soft_skill || internal.soft_skill || '0',
+                hard_skill: rawScores.hard_skill || internal.hard_skill || '0',
+                attitude: rawScores.attitude || internal.attitude || '0',
+                ...rawScores
+            };
+            const vals = Object.values(scores).map(v => parseFloat(v as string)).filter(v => !isNaN(v));
+            const avg = vals.length > 0 ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : 0;
+            return {
+                scores,
+                criteria: criteria.internal,
+                avgScore: avg,
+                grade: avg >= 85 ? 'A' : avg >= 75 ? 'B' : avg >= 60 ? 'C' : 'D',
+                evaluator: internal.evaluator?.name || 'Supervisor'
+            };
+        })();
+
+        const externalData = (() => {
+            const external = user.assessments.find(a => (a as any).category === 'external');
+            if (!external) return null;
+            const rawScores = (external as any).scores || {};
+            const scores = {
+                soft_skill: rawScores.soft_skill || external.soft_skill || '0',
+                hard_skill: rawScores.hard_skill || external.hard_skill || '0',
+                attitude: rawScores.attitude || external.attitude || '0',
+                ...rawScores
+            };
+            const vals = Object.values(scores).map(v => parseFloat(v as string)).filter(v => !isNaN(v));
+            const avg = vals.length > 0 ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : 0;
+            return {
+                scores,
+                criteria: criteria.external,
+                avgScore: avg,
+                grade: avg >= 85 ? 'A' : avg >= 75 ? 'B' : avg >= 60 ? 'C' : 'D',
+                evaluator: external.evaluator?.name || 'Supervisor'
+            };
+        })();
+
+        const intAvgVal = internalData?.avgScore || 0;
+        const extAvgVal = externalData?.avgScore || 0;
+        const activeCount = (intAvgVal > 0 && extAvgVal > 0) ? 2 : 1;
+        const averageScore = Math.round((intAvgVal + extAvgVal) / activeCount);
+
+        let grade = 'C';
+        if (averageScore >= 85) grade = 'A';
+        else if (averageScore >= 75) grade = 'B';
+        else if (averageScore >= 60) grade = 'C';
+        else grade = 'D';
 
         return {
             eligible: true,
@@ -86,6 +139,10 @@ export async function getCertificateEligibility(userId: string) {
                 period: `${user.internship_start ? new Date(user.internship_start).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'} - ${user.internship_end ? new Date(user.internship_end).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'}`,
                 score: averageScore,
                 grade: grade,
+                softSkill: assessment.soft_skill,
+                hardSkill: assessment.hard_skill,
+                attitude: assessment.attitude,
+                remarks: assessment.remarks,
                 evaluator: assessment.evaluator?.name || 'Supervisor',
                 issueDate: assessment.created_at ? new Date(assessment.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
                 hrOfficerName: certSettings.hr_officer_name,
@@ -95,7 +152,27 @@ export async function getCertificateEligibility(userId: string) {
                 phone: (user as any).phone,
                 institutionName: (user as any).institution_name,
                 institutionType: (user as any).institution_type,
-                personalEmail: (user as any).personal_email
+                personalEmail: (user as any).personal_email,
+                criteria: criteria,
+                category: (assessment as any).category || 'internal',
+                scores: (assessment as any).scores || null,
+                evaluatorIdNumber: (assessment.evaluator as any)?.id_number || '',
+                hrInstitutionName: 'Universitas Telkom',
+                allAssessments: user.assessments.map(a => ({
+                    id: a.id,
+                    category: a.category || 'internal',
+                    soft_skill: a.soft_skill,
+                    hard_skill: a.hard_skill,
+                    attitude: a.attitude,
+                    scores: (a as any).scores,
+                    remarks: a.remarks,
+                    period: a.period,
+                    evaluator: a.evaluator?.name,
+                    created_at: a.created_at
+                })),
+                templates: await getAssessmentTemplates(),
+                internalData,
+                externalData
             }
         };
 
@@ -141,9 +218,10 @@ export async function validateCertificateByNumber(certNumber: string) {
             const uniqueNumber = Math.abs(hash % 1000000000).toString().padStart(9, '0');
 
             if (uniqueNumber === numericPart || certNumber.includes(uniqueNumber)) {
-                const averageScore = Math.round(
-                    (assessment.soft_skill + assessment.hard_skill + assessment.attitude) / 3
-                );
+                const soft = parseFloat((assessment as any).soft_skill?.toString() || '0');
+                const hard = parseFloat((assessment as any).hard_skill?.toString() || '0');
+                const attitude = parseFloat((assessment as any).attitude?.toString() || '0');
+                const averageScore = Math.round((soft + hard + attitude) / 3);
 
                 let grade = 'C';
                 if (averageScore >= 85) grade = 'A';
@@ -171,7 +249,8 @@ export async function validateCertificateByNumber(certNumber: string) {
                         phone: (assessment.user as any).phone,
                         institutionName: (assessment.user as any).institution_name,
                         institutionType: (assessment.user as any).institution_type,
-                        personalEmail: (assessment.user as any).personal_email
+                        personalEmail: (assessment.user as any).personal_email,
+                        evaluatorIdNumber: (assessment.evaluator as any)?.id_number || ''
                     }
                 };
             }

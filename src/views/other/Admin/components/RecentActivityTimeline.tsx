@@ -7,7 +7,9 @@ import {
     CircularProgress,
     Avatar,
     Chip,
-    Stack
+    Stack,
+    MenuItem,
+    TextField
 } from '@mui/material';
 import { FormattedMessage, useIntl } from 'react-intl';
 import {
@@ -30,6 +32,8 @@ interface RecentActivityTimelineProps {
     getStatusColor: (status: string) => string;
     getStatusBg: (status: string) => string;
     getStatusIcon: (status: string) => React.ReactNode;
+    pageSize: number;
+    setPageSize: (size: number) => void;
 }
 
 const RecentActivityTimeline = ({
@@ -37,7 +41,9 @@ const RecentActivityTimeline = ({
     isLoading,
     getStatusColor,
     getStatusBg,
-    getStatusIcon
+    getStatusIcon,
+    pageSize,
+    setPageSize
 }: RecentActivityTimelineProps) => {
     const theme = useTheme();
     const intl = useIntl();
@@ -45,11 +51,33 @@ const RecentActivityTimeline = ({
     return (
         <MainCard
             title={
-                <Stack direction="row" spacing={1.25} alignItems="center">
-                    <Activity size={20} color={theme.palette.primary.main} variant="Bulk" />
-                    <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                        <FormattedMessage id="admin.dashboard.attendance_activity" />
-                    </Typography>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ width: '100%' }}>
+                    <Stack direction="row" spacing={1.25} alignItems="center">
+                        <Activity size={20} color={theme.palette.primary.main} variant="Bulk" />
+                        <Typography variant="h5" sx={{ fontWeight: 700 }}>
+                            <FormattedMessage id="admin.dashboard.attendance_activity" />
+                        </Typography>
+                    </Stack>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                        <Typography variant="caption" color="textSecondary">Rows:</Typography>
+                        <TextField
+                            select
+                            size="small"
+                            value={pageSize}
+                            onChange={(e) => setPageSize(Number(e.target.value))}
+                            sx={{
+                                width: 70,
+                                '& .MuiOutlinedInput-root': {
+                                    height: 30,
+                                    fontSize: '0.875rem'
+                                }
+                            }}
+                        >
+                            <MenuItem value={5}>5</MenuItem>
+                            <MenuItem value={10}>10</MenuItem>
+                            <MenuItem value={25}>25</MenuItem>
+                        </TextField>
+                    </Stack>
                 </Stack>
             }
             sx={{

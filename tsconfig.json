@@ -19,6 +19,17 @@
     "jsx": "preserve",
     "incremental": true,
     "baseUrl": "src",
+    "paths": {
+      "@/*": [
+        "./*"
+      ],
+      "utils/*": [
+        "utils/*"
+      ],
+      "lib/*": [
+        "lib/*"
+      ]
+    },
     "downlevelIteration": true,
     "allowSyntheticDefaultImports": true,
     "noUnusedLocals": true,
@@ -43,6 +54,7 @@
     ".next/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "tests"
   ]
 }

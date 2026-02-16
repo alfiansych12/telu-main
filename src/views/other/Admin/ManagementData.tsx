@@ -14,9 +14,9 @@ import {
 import { format } from 'date-fns';
 import { useTheme, alpha } from '@mui/material/styles';
 
-// ICONS
 import {
-  CalendarTick
+  CalendarTick,
+  Setting2
 } from 'iconsax-react';
 
 // PROJECT IMPORTS
@@ -35,6 +35,8 @@ import UnitDialog from './components/UnitDialog';
 import BulkImportDialog from './components/BulkImportDialog';
 import ImportHistoryDialog from './components/ImportHistoryDialog';
 import RecycleBinDialog from './components/RecycleBinDialog';
+import AssessmentSettings from './components/AssessmentSettings';
+import CertificateEditDialog from './components/CertificateEditDialog';
 import { bulkImportParticipants } from 'utils/api/import-participants';
 
 // ==============================|| MANAGEMENT DATA PAGE ||============================== //
@@ -42,7 +44,7 @@ import { bulkImportParticipants } from 'utils/api/import-participants';
 const ManagementDataView = () => {
   const theme = useTheme();
   const queryClient = useQueryClient();
-  const [selectedTable, setSelectedTable] = useState<'users' | 'units'>('users');
+  const [selectedTable, setSelectedTable] = useState<'users' | 'units' | 'settings'>('users');
 
   // State untuk Users
   const [usersPage, setUsersPage] = useState(1);
@@ -61,6 +63,7 @@ const ManagementDataView = () => {
   const [bulkImportOpen, setBulkImportOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [recycleBinOpen, setRecycleBinOpen] = useState(false);
+  const [certDialog, setCertDialog] = useState({ open: false, userId: null as string | null, userName: '' });
 
   // Auto reset to page 1 when filters/search change
   React.useEffect(() => {
@@ -106,6 +109,7 @@ const ManagementDataView = () => {
     onSuccess: (newUser) => {
       queryClient.invalidateQueries({ queryKey: ['management-list'] });
       queryClient.invalidateQueries({ queryKey: ['management-reference'] });
+      setUsersPage(1);
       setUserDialog({ open: false, mode: 'create', user: null });
       openAlert({
         variant: 'success',
@@ -298,6 +302,7 @@ const ManagementDataView = () => {
       }
       queryClient.invalidateQueries({ queryKey: ['management-list'] });
       queryClient.invalidateQueries({ queryKey: ['management-reference'] });
+      setUsersPage(1);
 
       // Close dialog immediately since info is in Alert & History
       setBulkImportOpen(false);
@@ -464,6 +469,31 @@ const ManagementDataView = () => {
             </span>
           </Paper>
         </Grid>
+
+        <Grid item xs={12} md={12}>
+          <Paper
+            elevation={selectedTable === 'settings' ? 8 : 0}
+            onClick={() => setSelectedTable('settings')}
+            sx={{
+              p: 2,
+              px: 4,
+              borderRadius: 3,
+              background: selectedTable === 'settings'
+                ? `linear-gradient(90deg, ${theme.palette.secondary.main}, ${theme.palette.secondary.dark})`
+                : alpha(theme.palette.grey[200], 0.3),
+              color: selectedTable === 'settings' ? '#fff' : 'text.primary',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              border: `1px solid ${selectedTable === 'settings' ? 'transparent' : theme.palette.divider}`,
+              '&:hover': { transform: 'translateY(-2px)', bgcolor: selectedTable === 'settings' ? null : alpha(theme.palette.grey[200], 0.5) }
+            }}
+          >
+            <Stack direction="row" spacing={2} alignItems="center" justifyContent="center">
+              <Setting2 size={24} variant={selectedTable === 'settings' ? 'Bold' : 'Outline'} />
+              <Typography variant="h5" sx={{ fontWeight: 800 }}>Assessment Settings & Flexible Scoring</Typography>
+            </Stack>
+          </Paper>
+        </Grid>
       </Grid>
 
       {selectedTable === 'users' ? (
@@ -508,8 +538,9 @@ const ManagementDataView = () => {
             });
           }}
           onOpenRecycleBin={() => setRecycleBinOpen(true)}
+          onCertificate={(user) => setCertDialog({ open: true, userId: user.id, userName: user.name })}
         />
-      ) : (
+      ) : selectedTable === 'units' ? (
         <UnitTable
           unitsData={unitsData}
           unitsLoading={unitsLoading}
@@ -546,6 +577,8 @@ const ManagementDataView = () => {
           }}
           onOpenRecycleBin={() => setRecycleBinOpen(true)}
         />
+      ) : (
+        <AssessmentSettings />
       )}
 
       <RecycleBinDialog
@@ -588,6 +621,13 @@ const ManagementDataView = () => {
         onSubmit={handleUnitSubmit}
         error={createUnitMutation.error || updateUnitMutation.error}
         isLoading={createUnitMutation.isPending || updateUnitMutation.isPending}
+      />
+
+      <CertificateEditDialog
+        open={certDialog.open}
+        onClose={() => setCertDialog({ ...certDialog, open: false })}
+        userId={certDialog.userId}
+        userName={certDialog.userName}
       />
 
 

@@ -61,7 +61,8 @@ export async function getUsers(filters: GetUsersFilters = {}) {
         if (filters.search) {
             where.OR = [
                 { name: { contains: filters.search, mode: 'insensitive' } },
-                { email: { contains: filters.search, mode: 'insensitive' } }
+                { email: { contains: filters.search, mode: 'insensitive' } },
+                { personal_email: { contains: filters.search, mode: 'insensitive' } }
             ];
         }
 
@@ -158,35 +159,52 @@ export async function getUserById(id: string) {
 /**
  * Create new user
  */
-export async function createUser(userData: Prisma.UserCreateInput) {
+export async function createUser(userData: any) {
     const session = await getserverAuthSession();
     if (!session || (session.user as any).role !== 'admin') {
         throw new Error('Operation not allowed. Admin privilege required.');
     }
 
     try {
-        const { unit_id, supervisor_id, password, mode, photo, phone, institution_name, institution_type, personal_email, ...userDataCleaned } = userData as any;
+        const {
+            name, email, role, status,
+            unit_id, supervisor_id, password,
+            photo, phone, institution_name, institution_type,
+            personal_email, telegram_username, id_number,
+            internship_start, internship_end
+        } = userData;
 
         const data: any = {
-            ...userDataCleaned,
-            photo,
-            phone,
-            institution_name,
-            institution_type,
-            personal_email,
-            internship_start: userDataCleaned.internship_start ? new Date(userDataCleaned.internship_start) : null,
-            internship_end: userDataCleaned.internship_end ? new Date(userDataCleaned.internship_end) : null
+            name,
+            email,
+            role: role as UserRole,
+            status: status as EntityStatus,
+            photo: photo || null,
+            phone: phone || null,
+            institution_name: institution_name || null,
+            institution_type: institution_type || null,
+            personal_email: personal_email || null,
+            telegram_username: telegram_username || null,
+            id_number: id_number || null,
+            internship_start: internship_start ? new Date(internship_start) : null,
+            internship_end: internship_end ? new Date(internship_end) : null
         };
 
-        if (password && password.trim() !== '') {
+        // Secure password handling
+        if (role === 'admin') {
+            data.password = null; // Admins MUST use SSO
+        } else if (password && typeof password === 'string' && password.trim() !== '') {
             data.password = password;
+        } else {
+            data.password = null; // Default to null for participants if no password provided
         }
 
+        // Handle Relations
         if (unit_id) {
             data.unit = { connect: { id: unit_id } };
         }
 
-        if (supervisor_id && data.role === 'participant') {
+        if (supervisor_id && role === 'participant') {
             data.supervisor = { connect: { id: supervisor_id } };
         }
 
@@ -202,48 +220,56 @@ export async function createUser(userData: Prisma.UserCreateInput) {
         });
 
         return user;
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error creating user:', error);
-        throw error;
+        throw new Error(error.message || 'Error occurred while creating user');
     }
 }
 
 /**
  * Update user
  */
-export async function updateUser(id: string, userData: Prisma.UserUpdateInput) {
+export async function updateUser(id: string, userData: any) {
     const session = await getserverAuthSession();
     if (!session) {
         throw new Error('Unauthorized');
     }
 
-    const { role: userRole, id: sessionUserId } = session.user as any;
+    const { role: sessionUserRole, id: sessionUserId } = session.user as any;
 
     // Security check: only admin can update others, users can update themselves
-    if (userRole !== 'admin' && id !== sessionUserId) {
+    if (sessionUserRole !== 'admin' && id !== sessionUserId) {
         throw new Error('Forbidden: You can only update your own profile');
     }
 
     try {
-        const { unit_id, supervisor_id, password, mode, photo, phone, institution_name, institution_type, personal_email, ...userDataCleaned } = userData as any;
+        const {
+            name, email, role, status,
+            unit_id, supervisor_id, password,
+            photo, phone, institution_name, institution_type,
+            personal_email, telegram_username, id_number,
+            internship_start, internship_end
+        } = userData;
 
-        const data: any = {
-            ...userDataCleaned,
-            photo,
-            phone,
-            institution_name,
-            institution_type,
-            personal_email,
-            internship_start: userDataCleaned.internship_start ? new Date(userDataCleaned.internship_start) : null,
-            internship_end: userDataCleaned.internship_end ? new Date(userDataCleaned.internship_end) : null
-        };
+        const data: any = {};
 
-        if (password && password.trim() !== '') {
-            data.password = password;
-        }
+        // Only include fields in the update if they are provided
+        if (name !== undefined) data.name = name;
+        if (email !== undefined) data.email = email;
+        if (role !== undefined) data.role = role as UserRole;
+        if (status !== undefined) data.status = status as EntityStatus;
+        if (photo !== undefined) data.photo = photo;
+        if (phone !== undefined) data.phone = phone;
+        if (institution_name !== undefined) data.institution_name = institution_name;
+        if (institution_type !== undefined) data.institution_type = institution_type;
+        if (personal_email !== undefined) data.personal_email = personal_email;
+        if (telegram_username !== undefined) data.telegram_username = telegram_username;
+        if (id_number !== undefined) data.id_number = id_number;
+        if (internship_start !== undefined) data.internship_start = internship_start ? new Date(internship_start) : null;
+        if (internship_end !== undefined) data.internship_end = internship_end ? new Date(internship_end) : null;
 
-        // Detect current user to check role if not provided in update data
-        let currentRole = data.role;
+        // Detect current user to check role for password/supervisor logic
+        let currentRole = role;
         if (!currentRole) {
             const existingUser = await prisma.user.findUnique({
                 where: { id },
@@ -252,7 +278,19 @@ export async function updateUser(id: string, userData: Prisma.UserUpdateInput) {
             currentRole = existingUser?.role;
         }
 
-        // Handle unit relation - Only if explicitly provided
+        // Secure password handling
+        if (password !== undefined) {
+            if (currentRole === 'admin') {
+                data.password = null; // Admin MUST use SSO
+            } else if (password && typeof password === 'string' && password.trim() !== '') {
+                data.password = password;
+            } else if (currentRole === 'participant') {
+                // If it's a participant and password is blank, we might want to keep current 
+                // but if it's explicitly set to something empty, maybe we don't update it
+            }
+        }
+
+        // Handle unit relation
         if (unit_id !== undefined) {
             if (unit_id) {
                 data.unit = { connect: { id: unit_id } };
@@ -261,7 +299,7 @@ export async function updateUser(id: string, userData: Prisma.UserUpdateInput) {
             }
         }
 
-        // Handle supervisor relation - Only for participants and if explicitly provided
+        // Handle supervisor relation
         if (currentRole === 'participant') {
             if (supervisor_id !== undefined) {
                 if (supervisor_id) {
@@ -271,7 +309,6 @@ export async function updateUser(id: string, userData: Prisma.UserUpdateInput) {
                 }
             }
         } else if (currentRole && currentRole !== 'participant') {
-            // Non-participants should never have a supervisor
             data.supervisor = { disconnect: true };
         }
 
@@ -284,13 +321,13 @@ export async function updateUser(id: string, userData: Prisma.UserUpdateInput) {
             action: 'UPDATE_USER',
             entity: 'User',
             entityId: user.id,
-            details: data
+            details: { email: user.email, updatedFields: Object.keys(data) }
         });
 
         return user;
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error updating user:', error);
-        throw error;
+        throw new Error(error.message || 'Error occurred while updating user');
     }
 }
 

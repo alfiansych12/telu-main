@@ -29,6 +29,7 @@ import { Document, Packer, Paragraph, Table as DocxTable, TableCell as DocxTable
 // PROJECT IMPORTS
 import { getSubordinateAssessments, upsertAssessment, deleteAssessment } from 'utils/api/assessments';
 import { getUsers } from 'utils/api/users';
+import { getAssessmentCriteria, getAssessmentTemplatesByInstitution } from 'utils/api/settings';
 import { openAlert } from 'api/alert';
 
 // LOCAL COMPONENTS
@@ -46,9 +47,10 @@ const AssessmentView = () => {
     const [selectedAssessment, setSelectedAssessment] = useState<any>(null);
     const [formData, setFormData] = useState({
         user_id: '',
-        soft_skill: 0,
-        hard_skill: 0,
-        attitude: 0,
+        soft_skill: '0',
+        hard_skill: '0',
+        attitude: '0',
+        category: 'internal',
         remarks: '',
         start_date: format(new Date(), 'yyyy-MM-dd'),
         end_date: format(new Date(), 'yyyy-MM-dd')
@@ -70,11 +72,22 @@ const AssessmentView = () => {
         enabled: !!supervisorId
     });
 
-    // Fetch assessments
     const { data: assessments, isLoading } = useQuery({
         queryKey: ['assessments', supervisorId],
         queryFn: () => getSubordinateAssessments(supervisorId),
         enabled: !!supervisorId
+    });
+
+    // Fetch assessment criteria settings (flexible labels)
+    const { data: criteria } = useQuery({
+        queryKey: ['assessment-criteria'],
+        queryFn: () => getAssessmentCriteria()
+    });
+
+    // Fetch all templates for row-specific labeling
+    const { data: templates } = useQuery({
+        queryKey: ['assessment-templates-map'],
+        queryFn: () => getAssessmentTemplatesByInstitution()
     });
 
     // Filter out participants who already have an assessment
@@ -86,9 +99,12 @@ const AssessmentView = () => {
             // If editing, always include the currently assessed user
             if (selectedAssessment && user.id === selectedAssessment.user_id) return true;
 
-            // Otherwise, only show users who don't have an assessment for this supervisor yet
-            const alreadyAssessed = assessments?.some((a: any) => a.user_id === user.id);
-            return !alreadyAssessed;
+            // Only show users who don't have BOTH assessments yet
+            const userAssessments = assessments?.filter((a: any) => a.user_id === user.id);
+            const hasInternal = userAssessments?.some((a: any) => (a.category || 'internal') === 'internal');
+            const hasExternal = userAssessments?.some((a: any) => a.category === 'external');
+
+            return !hasInternal || !hasExternal;
         });
     }, [subordinatesData, assessments, selectedAssessment]);
 
@@ -146,9 +162,10 @@ const AssessmentView = () => {
 
             setFormData({
                 user_id: assessment.user_id,
-                soft_skill: assessment.soft_skill,
-                hard_skill: assessment.hard_skill,
-                attitude: assessment.attitude,
+                soft_skill: assessment.soft_skill || '0',
+                hard_skill: assessment.hard_skill || '0',
+                attitude: assessment.attitude || '0',
+                category: assessment.category || 'internal',
                 remarks: assessment.remarks || '',
                 start_date: start,
                 end_date: end
@@ -157,9 +174,10 @@ const AssessmentView = () => {
             setSelectedAssessment(null);
             setFormData({
                 user_id: '',
-                soft_skill: 0,
-                hard_skill: 0,
-                attitude: 0,
+                soft_skill: '0',
+                hard_skill: '0',
+                attitude: '0',
+                category: 'internal',
                 remarks: '',
                 start_date: format(new Date(), 'yyyy-MM-dd'),
                 end_date: format(new Date(), 'yyyy-MM-dd')
@@ -168,26 +186,51 @@ const AssessmentView = () => {
         setDialogOpen(true);
     };
 
-    const handleSubmit = () => {
-        if (!formData.user_id) {
+    const handleSubmit = async (submissionData?: any) => {
+        const dataToSubmit = submissionData || formData;
+
+        if (!dataToSubmit) return;
+
+        // Handle array of assessments (e.g. both internal and external)
+        if (Array.isArray(dataToSubmit)) {
+            try {
+                for (const item of dataToSubmit) {
+                    const { start_date, end_date, ...rest } = item;
+                    await mutation.mutateAsync({
+                        ...rest,
+                        period: item.period || `${start_date} - ${end_date}`,
+                        evaluator_id: supervisorId
+                    });
+                }
+                setDialogOpen(false);
+                openAlert({ title: 'Success!', message: 'All assessment records have been saved.', variant: 'success' });
+            } catch (error: any) {
+                console.error('Batch save failed:', error);
+                openAlert({ title: 'Error', message: error.message || 'Failed to save some assessments.', variant: 'error' });
+            }
+            return;
+        }
+
+        if (!dataToSubmit.user_id) {
             openAlert({ title: 'Error', message: 'Please select an intern.', variant: 'error' });
             return;
         }
 
-        const { start_date, end_date, ...rest } = formData;
+        const { start_date, end_date, ...rest } = dataToSubmit;
 
         mutation.mutate({
             ...rest,
-            period: `${start_date} - ${end_date}`,
+            period: dataToSubmit.period || `${start_date} - ${end_date}`,
             id: selectedAssessment?.id,
             evaluator_id: supervisorId
         });
     };
 
-    const getScoreLabel = (score: number) => {
-        if (score >= 85) return { label: 'Excellent', color: 'success' };
-        if (score >= 75) return { label: 'Good', color: 'info' };
-        if (score >= 60) return { label: 'Average', color: 'warning' };
+    const getScoreLabel = (score: number | string) => {
+        const numScore = typeof score === 'string' ? parseFloat(score) : score;
+        if (numScore >= 85) return { label: 'Excellent', color: 'success' };
+        if (numScore >= 75) return { label: 'Good', color: 'info' };
+        if (numScore >= 60) return { label: 'Average', color: 'warning' };
         return { label: 'Poor', color: 'error' };
     };
 
@@ -246,9 +289,9 @@ const AssessmentView = () => {
         const totalAssessments = assessments?.length || 0;
         let totalSoftSkill = 0, totalHardSkill = 0, totalAttitude = 0;
         (assessments || []).forEach((row: any) => {
-            totalSoftSkill += row.soft_skill;
-            totalHardSkill += row.hard_skill;
-            totalAttitude += row.attitude;
+            totalSoftSkill += parseFloat(row.soft_skill || '0');
+            totalHardSkill += parseFloat(row.hard_skill || '0');
+            totalAttitude += parseFloat(row.attitude || '0');
         });
         const overallAvg = totalAssessments > 0 ? ((totalSoftSkill + totalHardSkill + totalAttitude) / (totalAssessments * 3)).toFixed(1) : '0';
 
@@ -272,15 +315,16 @@ const AssessmentView = () => {
         doc.text(overallAvg + ' / 100', midX + 5, summaryY + 14);
 
         const tableData = (assessments || []).map((row: any, index: number) => {
-            const avg = (row.soft_skill + row.hard_skill + row.attitude) / 3;
+            const avg = (parseFloat(row.soft_skill || '0') + parseFloat(row.hard_skill || '0') + parseFloat(row.attitude || '0')) / 3;
             const status = getScoreLabel(avg);
             return [
                 (index + 1).toString(),
                 row.user?.name || '-',
+                `${row.category?.toUpperCase() || 'INTERNAL'}`,
                 row.period || '-',
-                row.soft_skill.toString(),
-                row.hard_skill.toString(),
-                row.attitude.toString(),
+                (row.soft_skill || '0').toString(),
+                (row.hard_skill || '0').toString(),
+                (row.attitude || '0').toString(),
                 avg.toFixed(1),
                 status.label.toUpperCase()
             ];
@@ -288,7 +332,7 @@ const AssessmentView = () => {
 
         autoTable(doc, {
             startY: summaryY + 28,
-            head: [['NO', 'INTERN NAME', 'PERIOD', 'SOFT', 'HARD', 'ATTITUDE', 'AVG', 'CATEGORY']],
+            head: [['NO', 'INTERN NAME', 'TYPE', 'PERIOD', 'SOFT', 'HARD', 'ATTITUDE', 'AVG', 'CATEGORY']],
             body: tableData,
             theme: 'grid',
             headStyles: {
@@ -353,11 +397,12 @@ const AssessmentView = () => {
     // Export to Excel
     const handleExportExcel = () => {
         const excelData = (assessments || []).map((row: any, index: number) => {
-            const avg = (row.soft_skill + row.hard_skill + row.attitude) / 3;
+            const avg = (parseFloat(row.soft_skill || '0') + parseFloat(row.hard_skill || '0') + parseFloat(row.attitude || '0')) / 3;
             const status = getScoreLabel(avg);
             return {
                 'NO': index + 1,
                 'INTERN NAME': row.user?.name || '-',
+                'TYPE': row.category?.toUpperCase() || 'INTERNAL',
                 'PERIOD': row.period || '-',
                 'SOFT SKILL': row.soft_skill,
                 'HARD SKILL': row.hard_skill,
@@ -395,15 +440,15 @@ const AssessmentView = () => {
         });
 
         const dataRows = (assessments || []).map((row: any, index: number) => {
-            const avg = (row.soft_skill + row.hard_skill + row.attitude) / 3;
+            const avg = (parseFloat(row.soft_skill || '0') + parseFloat(row.hard_skill || '0') + parseFloat(row.attitude || '0')) / 3;
             return new DocxTableRow({
                 children: [
                     new DocxTableCell({ children: [new Paragraph({ text: (index + 1).toString(), alignment: AlignmentType.CENTER })] }),
                     new DocxTableCell({ children: [new Paragraph({ text: row.user?.name || '-' })] }),
                     new DocxTableCell({ children: [new Paragraph({ text: row.period || '-', alignment: AlignmentType.CENTER })] }),
-                    new DocxTableCell({ children: [new Paragraph({ text: row.soft_skill.toString(), alignment: AlignmentType.CENTER })] }),
-                    new DocxTableCell({ children: [new Paragraph({ text: row.hard_skill.toString(), alignment: AlignmentType.CENTER })] }),
-                    new DocxTableCell({ children: [new Paragraph({ text: row.attitude.toString(), alignment: AlignmentType.CENTER })] }),
+                    new DocxTableCell({ children: [new Paragraph({ text: (row.soft_skill || '0').toString(), alignment: AlignmentType.CENTER })] }),
+                    new DocxTableCell({ children: [new Paragraph({ text: (row.hard_skill || '0').toString(), alignment: AlignmentType.CENTER })] }),
+                    new DocxTableCell({ children: [new Paragraph({ text: (row.attitude || '0').toString(), alignment: AlignmentType.CENTER })] }),
                     new DocxTableCell({ children: [new Paragraph({ text: avg.toFixed(1), alignment: AlignmentType.CENTER })] }),
                     new DocxTableCell({ children: [new Paragraph({ text: row.remarks || '-' })] }),
                 ],
@@ -437,7 +482,7 @@ const AssessmentView = () => {
             <Box sx={{ mb: 4, display: 'flex', flexDirection: { xs: 'column', md: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'center' }, gap: 2 }}>
                 <Box>
                     <Typography variant="h3" sx={{ fontWeight: 800 }}>Internship Assessments</Typography>
-                    <Typography variant="body1" color="textSecondary">Evaluate Softskills, Hardskills, and Attitude of Participants</Typography>
+                    <Typography variant="body1" color="textSecondary">Evaluate Performance Indicators of Participants</Typography>
                 </Box>
                 <Stack
                     direction={{ xs: 'column', sm: 'row' }}
@@ -481,6 +526,8 @@ const AssessmentView = () => {
                         deleteMutation={deleteMutation}
                         assessmentToDelete={assessmentToDelete}
                         getScoreLabel={getScoreLabel}
+                        criteria={criteria}
+                        templates={templates || {}}
                     />
                 </Grid>
             </Grid>
@@ -494,6 +541,8 @@ const AssessmentView = () => {
                 onSubmit={handleSubmit}
                 mutation={mutation}
                 unassessedParticipants={unassessedParticipants}
+                criteria={criteria}
+                allAssessments={assessments || []}
             />
 
             <Dialog open={confirmOpen} onClose={() => !deleteMutation.isPending && setConfirmOpen(false)}>

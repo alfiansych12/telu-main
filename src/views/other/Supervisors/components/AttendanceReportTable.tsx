@@ -18,14 +18,15 @@ import {
 } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import { formatDate, formatTime } from 'utils/format';
-import { NoteText } from 'iconsax-react';
+import { NoteText, Clock } from 'iconsax-react';
 
 interface AttendanceReportTableProps {
     filteredAttendances: any[];
     isLoading: boolean;
+    startNumber?: number;
 }
 
-const AttendanceReportTable = ({ filteredAttendances, isLoading }: AttendanceReportTableProps) => {
+const AttendanceReportTable = ({ filteredAttendances, isLoading, startNumber = 1 }: AttendanceReportTableProps) => {
     const theme = useTheme();
 
     const getStatusStyles = (status: string) => {
@@ -66,15 +67,8 @@ const AttendanceReportTable = ({ filteredAttendances, isLoading }: AttendanceRep
 
     return (
         <TableContainer component={Paper} elevation={0} sx={{
-            border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-            borderRadius: 4,
-            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-            overflow: 'hidden',
-            boxShadow: `0 8px 24px -12px rgba(0,0,0,0.1)`,
-            '&:hover': {
-                boxShadow: `0 20px 40px -20px rgba(0,0,0,0.15)`,
-                borderColor: alpha(theme.palette.primary.main, 0.2),
-            }
+            border: `1px solid ${theme.palette.divider}`,
+            borderRadius: 2
         }}>
             {isLoading ? (
                 <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
@@ -97,7 +91,7 @@ const AttendanceReportTable = ({ filteredAttendances, isLoading }: AttendanceRep
                     }
                 }}>
                     <TableHead sx={{
-                        bgcolor: alpha(theme.palette.grey[50], 0.5),
+                        bgcolor: theme.palette.grey[50], // Match Monitoring.tsx
                         borderBottom: `2px solid ${theme.palette.divider}`
                     }}>
                         <TableRow>
@@ -116,15 +110,16 @@ const AttendanceReportTable = ({ filteredAttendances, isLoading }: AttendanceRep
                                 return (
                                     <TableRow
                                         key={row.id}
+                                        hover // Match Monitoring.tsx use of hover
                                         sx={{
                                             transition: 'background-color 0.2s',
-                                            '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.02) },
+                                            '&:last-child td, &:last-child th': { border: 0 }, // Match Monitoring.tsx styling
                                             '@media print': { breakInside: 'avoid' }
                                         }}
                                     >
                                         <TableCell align="center">
                                             <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.disabled' }}>
-                                                {(index + 1).toString().padStart(2, '0')}
+                                                {(startNumber + index).toString().padStart(2, '0')}
                                             </Typography>
                                         </TableCell>
 
@@ -178,15 +173,31 @@ const AttendanceReportTable = ({ filteredAttendances, isLoading }: AttendanceRep
                                                     </Typography>
                                                 </Box>
                                                 <Typography variant="caption" color="text.disabled">-</Typography>
-                                                <Box sx={{
-                                                    px: 1, py: 0.5, borderRadius: 1.5,
-                                                    bgcolor: alpha(theme.palette.error.main, 0.05),
-                                                    border: `1px solid ${alpha(theme.palette.error.main, 0.1)}`
-                                                }}>
-                                                    <Typography variant="caption" sx={{ fontWeight: 700, color: theme.palette.error.dark }}>
-                                                        {formatTime(row.check_out_time)}
-                                                    </Typography>
-                                                </Box>
+                                                {row.check_in_time && !row.check_out_time && formatDate(row.date) !== formatDate(new Date()) ? (
+                                                    <Box sx={{
+                                                        px: 1, py: 0.5, borderRadius: 1.5,
+                                                        bgcolor: alpha(theme.palette.error.main, 0.1),
+                                                        border: `1px solid ${alpha(theme.palette.error.main, 0.3)}`,
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: 0.5
+                                                    }}>
+                                                        <Clock size={12} variant="Bold" color={theme.palette.error.main} />
+                                                        <Typography variant="caption" sx={{ fontWeight: 800, color: theme.palette.error.main, fontSize: '0.6rem' }}>
+                                                            MISSING OUT
+                                                        </Typography>
+                                                    </Box>
+                                                ) : (
+                                                    <Box sx={{
+                                                        px: 1, py: 0.5, borderRadius: 1.5,
+                                                        bgcolor: alpha(theme.palette.error.main, 0.05),
+                                                        border: `1px solid ${alpha(theme.palette.error.main, 0.1)}`
+                                                    }}>
+                                                        <Typography variant="caption" sx={{ fontWeight: 700, color: theme.palette.error.dark }}>
+                                                            {formatTime(row.check_out_time)}
+                                                        </Typography>
+                                                    </Box>
+                                                )}
                                             </Stack>
                                         </TableCell>
 
@@ -228,7 +239,7 @@ const AttendanceReportTable = ({ filteredAttendances, isLoading }: AttendanceRep
                                                         try {
                                                             const act = JSON.parse(row.activity_description || '{}');
                                                             return act.plan || (row.activity_description?.startsWith('{') ? '-' : row.activity_description) || 'No daily report filed';
-                                                        } catch (e) { return row.activity_description || 'No daily report filed'; }
+                                                        } catch { return row.activity_description || 'No daily report filed'; }
                                                     })()}
                                                 </Typography>
                                             </Box>

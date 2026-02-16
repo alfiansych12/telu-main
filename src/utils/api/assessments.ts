@@ -8,9 +8,10 @@ export interface AssessmentData {
     id?: string;
     user_id: string;
     evaluator_id: string;
-    soft_skill: number;
-    hard_skill: number;
-    attitude: number;
+    category: string;
+    soft_skill: string;
+    hard_skill: string;
+    attitude: string;
     remarks?: string;
     period?: string;
 }
@@ -45,6 +46,7 @@ export async function getSubordinateAssessments(supervisorId: string) {
                         id: true,
                         name: true,
                         email: true,
+                        institution_type: true,
                         unit: {
                             select: {
                                 name: true
@@ -86,25 +88,52 @@ export async function upsertAssessment(data: AssessmentData) {
             return await prisma.assessment.update({
                 where: { id: data.id },
                 data: {
-                    soft_skill: data.soft_skill,
-                    hard_skill: data.hard_skill,
-                    attitude: data.attitude,
+                    category: data.category,
+                    soft_skill: data.soft_skill as any,
+                    hard_skill: data.hard_skill as any,
+                    attitude: data.attitude as any,
+                    scores: (data as any).scores || null,
                     remarks: data.remarks,
                     period: data.period,
                     updated_at: new Date()
-                }
+                } as any
             });
         } else {
+            // Check if an assessment already exists for this user and category to prevent duplicates
+            const existing = await prisma.assessment.findFirst({
+                where: {
+                    user_id: data.user_id,
+                    category: data.category
+                }
+            });
+
+            if (existing) {
+                return await prisma.assessment.update({
+                    where: { id: existing.id },
+                    data: {
+                        soft_skill: data.soft_skill as any,
+                        hard_skill: data.hard_skill as any,
+                        attitude: data.attitude as any,
+                        scores: (data as any).scores || null,
+                        remarks: data.remarks,
+                        period: data.period,
+                        updated_at: new Date()
+                    } as any
+                });
+            }
+
             return await prisma.assessment.create({
                 data: {
                     user_id: data.user_id,
                     evaluator_id: data.evaluator_id,
-                    soft_skill: data.soft_skill,
-                    hard_skill: data.hard_skill,
-                    attitude: data.attitude,
+                    category: data.category,
+                    soft_skill: data.soft_skill as any,
+                    hard_skill: data.hard_skill as any,
+                    attitude: data.attitude as any,
+                    scores: (data as any).scores || null,
                     remarks: data.remarks,
                     period: data.period
-                }
+                } as any
             });
         }
     } catch (error) {

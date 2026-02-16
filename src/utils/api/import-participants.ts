@@ -14,9 +14,11 @@ export async function bulkImportParticipants(unitIds: string[], participants: {
     personal_email?: string,
     phone?: string,
     institution_name?: string,
+    institution_type?: string,
     unit_id?: string | null,
     internship_start?: string | null,
-    internship_end?: string | null
+    internship_end?: string | null,
+    transcript_external?: string[] | null
 }[]) {
     const session = await getserverAuthSession();
     if (!session || (session.user as any).role !== 'admin') {
@@ -75,6 +77,85 @@ export async function bulkImportParticipants(unitIds: string[], participants: {
         const activeUsers = existingUsers.filter(u => u.deleted_at === null);
         const trashUsers = existingUsers.filter(u => u.deleted_at !== null);
 
+        // ========================================================================
+        // PROCESS TRANSCRIPT EXTERNAL - Create/Update Assessment Templates
+        // ========================================================================
+        const institutionTemplates = new Map<string, { criteria: string[], type: string }>();
+
+        console.log('📊 Processing transcript_external data from file...');
+
+        // Process ALL participants in the file to find template data
+        for (const p of deduplicatedParticipants) {
+            if (p.institution_name && p.transcript_external && p.transcript_external.length > 0) {
+                const institutionKey = p.institution_name.trim().toLowerCase();
+                if (!institutionTemplates.has(institutionKey)) {
+                    console.log(`✅ Found transcript_external for: ${p.institution_name}`);
+                    console.log('   Criteria:', p.transcript_external);
+                    institutionTemplates.set(institutionKey, {
+                        criteria: p.transcript_external,
+                        type: p.institution_type || p.institution_name
+                    });
+                }
+            }
+        }
+
+        // Sync Assessment Templates to database
+        const templateOperations: any[] = [];
+        for (const [institutionName, data] of institutionTemplates.entries()) {
+            const { criteria: criteriaArray } = data;
+
+            // Find the original case-sensitive institution name
+            const originalInstitution = deduplicatedParticipants.find(
+                p => p.institution_name?.trim().toLowerCase() === institutionName
+            )?.institution_name || institutionName;
+
+            // ALWAYS use the original institution name as the template key
+            // This ensures school-specific templates are created correctly
+            const templateKey = originalInstitution.substring(0, 50);
+
+            console.log(`🔄 Syncing institution-specific template for: ${templateKey}`);
+
+            // Convert string array to proper AssessmentCriteria format
+            const formattedCriteria = {
+                internal: [
+                    { key: 'soft_skill', label: 'Soft Skill', description: 'Kemampuan interpersonal dan komunikasi', type: 'number' },
+                    { key: 'hard_skill', label: 'Hard Skill', description: 'Kemampuan teknis dan profesional', type: 'number' },
+                    { key: 'attitude', label: 'Attitude', description: 'Sikap dan etika kerja', type: 'number' }
+                ],
+                external: criteriaArray.map((criteriaText, index) => ({
+                    key: `external_${index + 1}`,
+                    label: criteriaText,
+                    description: `Kriteria penilaian: ${criteriaText}`,
+                    type: 'number'
+                }))
+            };
+
+            templateOperations.push(
+                prisma.assessmentTemplate.upsert({
+                    where: { institution_type: templateKey },
+                    create: {
+                        institution_type: templateKey,
+                        criteria: formattedCriteria,
+                        description: `Auto-generated from bulk import for ${templateKey}`
+                    },
+                    update: {
+                        criteria: formattedCriteria,
+                        description: `Updated from bulk import for ${templateKey}`,
+                        updated_at: new Date()
+                    }
+                })
+            );
+        }
+
+        let templatesCreated = 0;
+        if (templateOperations.length > 0) {
+            console.log(`💾 Executing ${templateOperations.length} template upsert operations...`);
+            const templateResults = await prisma.$transaction(templateOperations);
+            templatesCreated = templateResults.length;
+            console.log(`✅ Successfully synced ${templatesCreated} Assessment Templates`);
+        }
+
+        // Now handle participant creation
         const activeEmails = new Set(activeUsers.map(u => u.email.toLowerCase()));
         const trashEmails = new Set(trashUsers.map(u => u.email.toLowerCase()));
 
@@ -82,6 +163,21 @@ export async function bulkImportParticipants(unitIds: string[], participants: {
         const newParticipants = deduplicatedParticipants.filter(p => !activeEmails.has(p.email.toLowerCase()) && !trashEmails.has(p.email.toLowerCase()));
 
         if (newParticipants.length === 0) {
+            if (templatesCreated > 0) {
+                const templateNames = Array.from(institutionTemplates.keys()).map(k => {
+                    const original = deduplicatedParticipants.find(p => p.institution_name?.trim().toLowerCase() === k)?.institution_name;
+                    return original || k;
+                }).join(', ');
+
+                return {
+                    success: true,
+                    count: 0,
+                    importedUsers: [],
+                    templatesCreated: templatesCreated,
+                    message: `📋 Berhasil memperbarui ${templatesCreated} Assessment Templates:\n${templateNames}\n\n(Tidak ada peserta baru yang ditambahkan karena semua email sudah terdaftar)`
+                };
+            }
+
             let errorMessage = "Tidak ada data baru untuk diimport.";
             if (trashUsers.length > 0) {
                 const trashNames = trashUsers.map(u => `${u.name} (${u.email})`).join(', ');
@@ -89,9 +185,6 @@ export async function bulkImportParticipants(unitIds: string[], participants: {
             }
             if (activeEmails.size > 0) {
                 errorMessage += `\n\n${activeEmails.size} akun lainnya sudah terdaftar aktif di sistem.`;
-            }
-            if (deduplicatedParticipants.length < participants.length) {
-                errorMessage += `\n\n(Terdapat ${participants.length - deduplicatedParticipants.length} duplikasi email dalam file)`;
             }
             return { success: false, message: errorMessage };
         }
@@ -116,7 +209,7 @@ export async function bulkImportParticipants(unitIds: string[], participants: {
         }
 
         const createData: any[] = [];
-        const defaultPassword = 'password123';
+        const defaultPassword = 'password123'; // Restored default password for participants
 
         for (const p of newParticipants) {
             let targetUnitId: string | null = null;
@@ -144,12 +237,29 @@ export async function bulkImportParticipants(unitIds: string[], participants: {
 
             if (!targetUnitId) continue;
 
+            // Normalize institution type
+            let finalInstitutionType = p.institution_type?.toUpperCase().trim() || 'UNIVERSITAS';
+            const validTypes = ['UNIVERSITAS', 'SMK', 'SMA', 'LAINNYA'];
+            if (!validTypes.includes(finalInstitutionType)) {
+                // If it's not a standard type, but we have an institution name,
+                // we'll keep the custom type (it might be use for template matching)
+                // but if it's empty, we default to UNIVERSITAS
+                if (!p.institution_type && p.institution_name) {
+                    // Try to guess from name
+                    const name = p.institution_name.toUpperCase();
+                    if (name.includes('SMK')) finalInstitutionType = 'SMK';
+                    else if (name.includes('SMA')) finalInstitutionType = 'SMA';
+                    else finalInstitutionType = 'UNIVERSITAS';
+                }
+            }
+
             createData.push({
                 name: p.name,
                 email: p.email,
                 personal_email: p.personal_email || null,
                 phone: p.phone || null,
                 institution_name: p.institution_name || null,
+                institution_type: finalInstitutionType,
                 role: 'participant',
                 unit_id: targetUnitId,
                 supervisor_id: targetSupervisorId,
@@ -189,24 +299,16 @@ export async function bulkImportParticipants(unitIds: string[], participants: {
                 count: results.length,
                 skipped_active: Array.from(activeEmails),
                 skipped_trash: Array.from(trashEmails),
-                accounts: importedUsers
+                accounts: importedUsers,
+                templates_synced: templatesCreated
             }
         });
 
         const successNames = results.map(u => `${u.name} (${u.email})`).join(', ');
         let finalMessage = `✅ Berhasil mengimport ${results.length} peserta baru:\n${successNames}`;
 
-        if (trashUsers.length > 0) {
-            const trashNames = trashUsers.map(u => `${u.name} (${u.email})`).join(', ');
-            finalMessage += `\n\n⚠️ Dilewati (Terdaftar di Recycle Bin): ${trashNames}.`;
-        }
-
-        if (activeEmails.size > 0) {
-            finalMessage += `\n\nℹ️ ${activeEmails.size} akun lainnya dilewati karena sudah aktif di sistem.`;
-        }
-
-        if (results.length < newParticipants.length) {
-            finalMessage += `\n\n📊 ${newParticipants.length - results.length} peserta gagal diimport karena kuota unit penuh.`;
+        if (templatesCreated > 0) {
+            finalMessage += `\n\n📋 Assessment Templates tersinkronisasi untuk ${templatesCreated} institusi.`;
         }
 
         return {
@@ -214,7 +316,8 @@ export async function bulkImportParticipants(unitIds: string[], participants: {
             count: results.length,
             importedUsers,
             message: finalMessage,
-            skippedTrash: trashUsers.map(u => ({ name: u.name, email: u.email }))
+            skippedTrash: trashUsers.map(u => ({ name: u.name, email: u.email })),
+            templatesCreated: templatesCreated
         };
 
     } catch (error: any) {

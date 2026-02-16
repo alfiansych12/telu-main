@@ -5,6 +5,7 @@ import { RequestStatus, Prisma } from '@prisma/client';
 import { getserverAuthSession } from 'utils/authOptions';
 import { MonitoringWithRelations } from 'types/api';
 import { logAudit } from 'utils/audit';
+import { createNotification } from './notifications';
 
 export interface MonitoringLocationWithUser {
     id: string;
@@ -46,6 +47,14 @@ export async function getMonitoringRequests(filters?: {
     }
 
     const { role: userRole, id: userId } = session.user as any;
+
+    if (filters?.userId && filters?.date) {
+        try {
+            await autoApproveExpiredMonitoring();
+        } catch (e) {
+            console.error('Failed to auto-approve monitoring:', e);
+        }
+    }
 
     try {
         const where: Prisma.MonitoringLocationWhereInput = {};
@@ -153,6 +162,22 @@ export async function createMonitoringRequest(requestData: any) {
             details: { location: request.location_name, date: request.request_date }
         });
 
+        // Notify Supervisor
+        const requester = await prisma.user.findUnique({
+            where: { id: requestData.user_id },
+            select: { name: true, supervisor_id: true }
+        });
+
+        if (requester?.supervisor_id) {
+            await createNotification({
+                userId: requester.supervisor_id,
+                title: 'New Out-Area Request',
+                message: `${requester.name} has submitted an out-area request for ${request.location_name} on ${new Date(request.request_date).toLocaleDateString()}. Reason: ${request.reason || '-'}`,
+                type: 'monitoring',
+                link: `/Monitoringsuper?monitoringId=${request.id}`
+            });
+        }
+
         return {
             ...request,
             latitude: request.latitude ? Number(request.latitude) : null,
@@ -164,9 +189,6 @@ export async function createMonitoringRequest(requestData: any) {
     }
 }
 
-/**
- * Update monitoring location request (approve/reject)
- */
 export async function updateMonitoringRequest(
     id: string,
     status: 'approved' | 'rejected',
@@ -177,6 +199,17 @@ export async function updateMonitoringRequest(
         throw new Error('Unauthorized');
     }
 
+    return executeMonitoringRequestUpdate(id, status, notes);
+}
+
+/**
+ * Internal function to handle the update logic without session checks
+ */
+async function executeMonitoringRequestUpdate(
+    id: string,
+    status: 'approved' | 'rejected',
+    notes?: string
+) {
     try {
         const request = await prisma.monitoringLocation.update({
             where: { id },
@@ -279,6 +312,47 @@ export async function getPendingRequestsCount() {
         return count;
     } catch (error) {
         console.error('Error fetching pending requests count:', error);
+        throw error;
+    }
+}
+
+/**
+ * Auto-approve pending monitoring requests older than 24 hours
+ */
+export async function autoApproveExpiredMonitoring() {
+    const oneDayAgo = new Date();
+    oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+
+    try {
+        const expiredRequests = await prisma.monitoringLocation.findMany({
+            where: {
+                status: 'pending',
+                created_at: {
+                    lte: oneDayAgo
+                }
+            },
+            select: {
+                id: true
+            }
+        });
+
+        if (expiredRequests.length === 0) return { count: 0 };
+
+        console.log(`[System] Auto-approving ${expiredRequests.length} expired monitoring requests...`);
+
+        let count = 0;
+        for (const req of expiredRequests) {
+            try {
+                await executeMonitoringRequestUpdate(req.id, 'approved', 'System Auto-Approved (No response from supervisor for 24 hours)');
+                count++;
+            } catch (err) {
+                console.error(`Failed to auto-approve monitoring request ${req.id}:`, err);
+            }
+        }
+
+        return { count };
+    } catch (error) {
+        console.error('Error in autoApproveExpiredMonitoring:', error);
         throw error;
     }
 }

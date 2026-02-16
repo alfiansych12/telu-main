@@ -26,7 +26,11 @@ const WeeklyTrendChart = ({ lineData }: WeeklyTrendChartProps) => {
                         },
                         scales: {
                             y: {
-                                beginAtZero: true
+                                min: 1,
+                                max: 5,
+                                ticks: {
+                                    stepSize: 1
+                                }
                             }
                         }
                     }}

@@ -9,9 +9,11 @@ import {
   Grid,
   Box,
   CircularProgress,
-  Stack,
   Typography,
+  Alert,
+  Stack
 } from '@mui/material';
+
 import { createNotification } from 'utils/api/notifications';
 
 // PROJECT IMPORTS
@@ -31,7 +33,7 @@ import InternshipFinishedState from './components/InternshipFinishedState';
 import ParticipantDashboardHeader from './components/ParticipantDashboardHeader';
 import ParticipantStatusCards from './components/ParticipantStatusCards';
 import AttendanceMapCard from './components/AttendanceMapCard';
-import AttendanceHistoryTable from './components/AttendanceHistoryTable';
+import AttendanceHistoryCard from './components/AttendanceHistoryCard';
 import TodayAttendanceActionCard from './components/TodayAttendanceActionCard';
 
 import { useIntl, FormattedMessage } from 'react-intl';
@@ -41,6 +43,7 @@ const DashboardAttendance = () => {
   const intl = useIntl();
   const [outAreaDialogOpen, setOutAreaDialogOpen] = useState(false);
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
+  const [leaveRequestDate, setLeaveRequestDate] = useState<Date | null>(null);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [activityPlan, setActivityPlan] = useState('');
   const [attendancePhoto, setAttendancePhoto] = useState<string | null>(null);
@@ -66,6 +69,7 @@ const DashboardAttendance = () => {
   const todayRequests = dashboardData?.todayRequests;
   const attendanceData = dashboardData?.attendanceData;
   const certEligibility = dashboardData?.certEligibility;
+  const pendingLeaves = dashboardData?.pendingLeaves;
 
   const profileLoading = dashboardLoading;
   const attendanceLoading = dashboardLoading;
@@ -403,15 +407,15 @@ const DashboardAttendance = () => {
     }
   };
 
-  const getStatusColor = (status: any) => {
-    switch (status) {
-      case 'present': return 'success';
-      case 'late': return 'warning';
-      case 'absent': return 'error';
-      case 'sick':
-      case 'permit': return 'info';
-      default: return 'default';
-    }
+
+  const handleRequestLeave = (date: Date) => {
+    setLeaveRequestDate(date);
+    setLeaveDialogOpen(true);
+  };
+
+  const handleOpenLeaveDialog = () => {
+    setLeaveRequestDate(new Date());
+    setLeaveDialogOpen(true);
   };
 
   if (attendanceLoading || profileLoading) return <Box sx={{ display: 'flex', justifyContent: 'center', p: 5 }}><CircularProgress /></Box>;
@@ -436,6 +440,28 @@ const DashboardAttendance = () => {
         />
       ) : (
         <>
+
+          {internshipStatus === 'active' && !checkedIn && !isOnLeave && (
+            <Box sx={{ width: '100%', display: 'flex', justifyContent: 'center', mb: 3, mt: 2 }}>
+              <Alert
+                severity="warning"
+                variant="filled"
+                sx={{
+                  width: '100%',
+                  maxWidth: 800,
+                  boxShadow: 3,
+                  fontSize: '1rem',
+                  alignItems: 'center',
+                  '& .MuiAlert-icon': { fontSize: '2rem' }
+                }}
+              >
+                <Typography variant="subtitle1" fontWeight="bold">
+                  <FormattedMessage id="dashboard.attendance.not_checked_in" defaultMessage="Anda belum melakukan Check-in hari ini! Mohon segera check-in atau ajukan izin jika berhalangan." />
+                </Typography>
+              </Alert>
+            </Box>
+          )}
+
           <ParticipantDashboardHeader
             certEligibility={certEligibility}
             certLoading={certLoading}
@@ -446,8 +472,7 @@ const DashboardAttendance = () => {
             userProfile={userProfile}
             attendanceRate={calcAttendanceRate}
           />
-
-          <Grid container spacing={3} justifyContent="center">
+          <Grid container spacing={3} justifyContent="center" sx={{ mt: 1 }}>
             {!isOnLeave && (
               <Grid item xs={12} md={8}>
                 <Stack spacing={3}>
@@ -457,9 +482,9 @@ const DashboardAttendance = () => {
                     userLocation={userLocation}
                     adminRadius={adminRadius}
                   />
-                  <AttendanceHistoryTable
+                  <AttendanceHistoryCard
                     attendances={Array.isArray(attendanceData) ? attendanceData : (attendanceData?.data || [])}
-                    getStatusColor={getStatusColor}
+                    onRequestLeave={handleRequestLeave}
                   />
                 </Stack>
               </Grid>
@@ -477,7 +502,7 @@ const DashboardAttendance = () => {
                 checkInMutationPending={checkInMutation.isPending}
                 handleCheckIn={handleCheckIn}
                 setOutAreaDialogOpen={setOutAreaDialogOpen}
-                setLeaveDialogOpen={setLeaveDialogOpen}
+                setLeaveDialogOpen={handleOpenLeaveDialog}
                 todayAttendance={todayAttendance}
                 activityPlan={activityPlan}
                 setActivityPlan={setActivityPlan}
@@ -488,6 +513,7 @@ const DashboardAttendance = () => {
                 certLoading={certLoading}
                 onCheckCertificate={onCheckCertificate}
                 locationSettings={locationSettings}
+                pendingLeaves={pendingLeaves}
               />
             </Grid>
 
@@ -502,11 +528,13 @@ const DashboardAttendance = () => {
               onClose={() => setLeaveDialogOpen(false)}
               userId={userId || ''}
               supervisorName={userProfile?.supervisor?.name}
+              initialDate={leaveRequestDate}
             />
           </Grid>
         </>
-      )}
-    </Box>
+      )
+      }
+    </Box >
   );
 };
 

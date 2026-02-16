@@ -27,7 +27,7 @@ export const authOptions: NextAuthOptions = {
           const cleanUsername = username.includes('@') ? username.split('@')[0] : username;
           const standardEmail = `${cleanUsername}@telkomuniversity.ac.id`;
 
-          console.log('Login attempt for:', username, 'Clean Username:', cleanUsername, 'Standard Email:', standardEmail);
+
 
           const localUser = await prisma.user.findFirst({
             where: {
@@ -38,12 +38,10 @@ export const authOptions: NextAuthOptions = {
             }
           });
 
-          console.log('Local user found:', localUser ? 'Yes' : 'No');
+
 
           if (localUser) {
-            console.log('Checking password for:', localUser.email, 'Matches:', localUser.password === password);
             if (localUser.password === password) {
-              console.log('Local login successful for:', localUser.email);
               return {
                 id: localUser.id,
                 name: localUser.name,
@@ -55,6 +53,8 @@ export const authOptions: NextAuthOptions = {
                 institution_name: (localUser as any).institution_name,
                 institution_type: (localUser as any).institution_type,
                 personal_email: (localUser as any).personal_email,
+                telegram_username: localUser.telegram_username,
+                id_number: localUser.id_number,
                 provider: 'local'
               } as any;
             }
@@ -62,11 +62,11 @@ export const authOptions: NextAuthOptions = {
 
           // 2. Fallback to External SSO (Telkom University)
           // Normalize username for SSO call: strip domain to ensure only core ID is sent
-          console.log('Attempting SSO login for:', cleanUsername);
+
           const tokenResponse: any = await authLogin(cleanUsername, password);
 
           // Debug: Check token response structure
-          console.log('SSO Token Response:', JSON.stringify(tokenResponse));
+
 
           const accessToken = tokenResponse?.token || tokenResponse?.data?.access_token || tokenResponse?.access_token;
 
@@ -78,7 +78,7 @@ export const authOptions: NextAuthOptions = {
           const userResponse: any = await getProfile(accessToken);
 
           // Debug: Check profile response structure
-          console.log('SSO Profile Response:', JSON.stringify(userResponse));
+
 
           // Flexible data mapping: Some APIs return data nested in .data, some don't.
           const userData = userResponse?.data || userResponse;
@@ -104,12 +104,12 @@ export const authOptions: NextAuthOptions = {
           });
 
           if (!dbUser) {
-            console.log('Creating new Participant record for SSO user:', email);
+            console.log('Creating new Supervisor record for SSO user:', email);
             dbUser = await prisma.user.create({
               data: {
                 email: email,
                 name: userData.fullname || userData.nama || userData.name || userData.display_name || identifier,
-                role: 'participant',
+                role: 'supervisor',
                 status: 'active'
               }
             });
@@ -119,8 +119,10 @@ export const authOptions: NextAuthOptions = {
             id: dbUser?.id || userData.id || identifier,
             name: dbUser?.name || userData.fullname || userData.nama || userData.name,
             email: email,
-            role: dbUser?.role || 'participant',
+            role: dbUser?.role || 'supervisor',
             unit_id: dbUser?.unit_id,
+            telegram_username: dbUser?.telegram_username,
+            id_number: dbUser?.id_number,
             provider: 'sso'
           } as any;
 
@@ -140,7 +142,9 @@ export const authOptions: NextAuthOptions = {
           ...token,
           name: session.name || token.name,
           email: session.email || token.email,
-          role: session.role || token.role
+          role: session.role || token.role,
+          telegram_username: session.telegram_username || token.telegram_username,
+          id_number: session.id_number || token.id_number
         };
       }
 
@@ -152,20 +156,24 @@ export const authOptions: NextAuthOptions = {
         token.email = userData.email;
         token.role = userData.role;
         token.unit_id = userData.unit_id;
+        token.telegram_username = userData.telegram_username;
+        token.id_number = userData.id_number;
         token.provider = account?.provider;
       }
       return token;
     },
     session: ({ session, token }) => {
       if (token) {
-        console.log('[AUTH] Session callback - Token found for:', token.email);
+
         // Only pass essential data to session
         session.user = {
           id: token.id,
           name: token.name,
           email: token.email,
           role: token.role,
-          unit_id: token.unit_id
+          unit_id: token.unit_id,
+          telegram_username: token.telegram_username,
+          id_number: token.id_number
         } as any;
 
         session.provider = token.provider;

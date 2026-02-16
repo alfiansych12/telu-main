@@ -25,7 +25,7 @@ import {
     Collapse
 } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
-import { Edit, Trash, User as UserIcon, Building as BuildingIcon, DocumentUpload, Timer1 } from 'iconsax-react';
+import { Edit, Trash, User as UserIcon, Building as BuildingIcon, DocumentUpload, Timer1, DocumentText } from 'iconsax-react';
 import MainCard from 'components/MainCard';
 import { UserWithRelations } from 'types/api';
 
@@ -48,6 +48,7 @@ interface UserTableProps {
     onDelete: (id: string) => void;
     onBulkDelete: (ids: string[]) => void;
     onOpenRecycleBin: () => void;
+    onCertificate: (user: UserWithRelations) => void;
 }
 
 const UserTable = ({
@@ -68,7 +69,8 @@ const UserTable = ({
     onEdit,
     onDelete,
     onBulkDelete,
-    onOpenRecycleBin
+    onOpenRecycleBin,
+    onCertificate
 }: UserTableProps) => {
     const theme = useTheme();
     const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
@@ -298,7 +300,12 @@ const UserTable = ({
                                             </Stack>
                                         </TableCell>
                                         <TableCell>
-                                            <Typography variant="body2" color="textSecondary" sx={{ fontWeight: 500 }}>{user.email}</Typography>
+                                            <Typography variant="body2" color="textPrimary" sx={{ fontWeight: 600 }}>{user.email}</Typography>
+                                            {user.personal_email && user.personal_email !== user.email && (
+                                                <Typography variant="caption" color="textSecondary" sx={{ display: 'block', fontSize: '0.7rem' }}>
+                                                    {user.personal_email}
+                                                </Typography>
+                                            )}
                                         </TableCell>
                                         <TableCell>
                                             <Chip
@@ -363,6 +370,18 @@ const UserTable = ({
                                                         <Trash size={18} />
                                                     </IconButton>
                                                 </Tooltip>
+                                                {user.role === 'participant' && (
+                                                    <Tooltip title="Edit & Generate Certificate">
+                                                        <IconButton
+                                                            size="small"
+                                                            color="success"
+                                                            onClick={() => onCertificate(user)}
+                                                            sx={{ bgcolor: alpha(theme.palette.success.main, 0.05) }}
+                                                        >
+                                                            <DocumentText size={18} />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                )}
                                             </Stack>
                                         </TableCell>
                                     </TableRow>

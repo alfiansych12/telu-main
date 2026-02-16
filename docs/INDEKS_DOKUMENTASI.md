@@ -12,6 +12,7 @@ Selamat datang di dokumentasi lengkap **Puti Internship Management System**. Hal
 |---------|-----------|------|
 | **Ringkasan Eksekutif** | Ringkasan singkat dan padat untuk decision makers | [RINGKASAN_EKSEKUTIF.md](./RINGKASAN_EKSEKUTIF.md) |
 | **Laporan Aplikasi Lengkap** | Laporan komprehensif tentang seluruh aplikasi | [LAPORAN_APLIKASI.md](./LAPORAN_APLIKASI.md) |
+| **User Acceptance Test** | Dokumen pengujian penerimaan pengguna | [UAT_Puti_Internship_Management.md](./UAT_Puti_Internship_Management.md) |
 | **Changelog** | Riwayat perubahan dan release notes | [CHANGELOG.md](./CHANGELOG.md) |
 
 ### 👨‍💻 Untuk Developer & Technical Team
@@ -214,6 +215,7 @@ Project Root/
 ├── INDEKS_DOKUMENTASI.md          ← You are here
 ├── RINGKASAN_EKSEKUTIF.md         ← Executive summary
 ├── LAPORAN_APLIKASI.md            ← Comprehensive report
+├── UAT_Puti_Internship_Management.md ← User acceptance test
 ├── TECHNICAL_SPECIFICATIONS.md    ← Technical specs
 ├── CHANGELOG.md                   ← Version history
 ├── DATABASE_SCHEMA.md             ← Database docs

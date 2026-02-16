@@ -11,7 +11,12 @@ import {
   Eye,
   Setting2,
   Award,
-  Scanner
+  Scanner,
+  ArchiveBook,
+  Notification,
+  Additem,
+  TextBlock,
+  UserAdd
 } from 'iconsax-react';
 
 // TYPE
@@ -27,7 +32,12 @@ const icons = {
   monitoring: Eye,
   settings: Setting2,
   assessment: Award,
-  scanner: Scanner
+  scanner: Scanner,
+  arsip: ArchiveBook,
+  notifications: Notification,
+  registration: Additem,
+  formBuilder: TextBlock,
+  applications: UserAdd
 };
 
 // ==============================|| MENU ITEMS - ADMIN MENU ||============================== //
@@ -59,6 +69,13 @@ const adminMenu: NavItemType = {
       url: '/ReportsMonitoring'
     },
     {
+      id: 'Arsip',
+      title: <FormattedMessage id="Arsip Institusi" />,
+      type: 'item',
+      icon: icons.arsip,
+      url: '/arsip'
+    },
+    {
       id: 'Map Settings',
       title: <FormattedMessage id="Map Settings" />,
       type: 'item',
@@ -71,6 +88,48 @@ const adminMenu: NavItemType = {
       type: 'item',
       icon: icons.scanner,
       url: '/CertificateScanner'
+    },
+    {
+      id: 'Notification Settings',
+      title: <FormattedMessage id="Notification Settings" />,
+      type: 'collapse',
+      icon: icons.notifications,
+      children: [
+        {
+          id: 'Notification Templates',
+          title: <FormattedMessage id="Message Templates" />,
+          type: 'item',
+          url: '/admin/notification-templates'
+        },
+        {
+          id: 'Telegram Notifications',
+          title: <FormattedMessage id="Telegram Logs" />,
+          type: 'item',
+          url: '/admin/telegram-notifications'
+        }
+      ]
+    },
+    {
+      id: 'Registration System',
+      title: <FormattedMessage id="Digital Registration" />,
+      type: 'collapse',
+      icon: icons.registration,
+      children: [
+        {
+          id: 'Form Builder',
+          title: <FormattedMessage id="Form Builder" />,
+          type: 'item',
+          icon: icons.formBuilder,
+          url: '/admin/registration/forms'
+        },
+        {
+          id: 'Applications',
+          title: <FormattedMessage id="Registrasi Masuk" />,
+          type: 'item',
+          icon: icons.applications,
+          url: '/admin/registration/applications'
+        }
+      ]
     },
     {
       id: 'Profileadmin',

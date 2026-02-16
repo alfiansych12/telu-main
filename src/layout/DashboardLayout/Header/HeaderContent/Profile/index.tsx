@@ -112,7 +112,7 @@ const ProfilePage = () => {
       >
         <Stack direction="row" spacing={1.25} alignItems="center" sx={{ p: 0.5, px: { xs: 1, md: 2 } }}>
           <Avatar alt="profile user" src={user ? user?.photo : avatar1} size="sm" />
-          <Typography variant="subtitle1" sx={{ display: { xs: 'none', md: 'block' }, fontWeight: 600 }}>
+          <Typography variant="subtitle1" sx={{ display: { xs: 'none', md: 'block' }, fontWeight: 600, color: 'text.primary' }}>
             {user ? user.fullName : ''}
           </Typography>
         </Stack>

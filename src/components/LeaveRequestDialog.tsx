@@ -28,22 +28,32 @@ import { GalleryAdd, Trash, CloseCircle, CalendarTick } from 'iconsax-react';
 import { alpha, useTheme } from '@mui/material/styles';
 import Dropzone from 'react-dropzone';
 import { addDays, differenceInDays, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
+import { FormattedMessage } from 'react-intl';
 
 interface LeaveRequestDialogProps {
     open: boolean;
     onClose: () => void;
     userId: string;
     supervisorName?: string;
+    initialDate?: Date | null;
 }
 
-const LeaveRequestDialog: React.FC<LeaveRequestDialogProps> = ({ open, onClose, userId, supervisorName }) => {
+const LeaveRequestDialog: React.FC<LeaveRequestDialogProps> = ({ open, onClose, userId, supervisorName, initialDate }) => {
     const theme = useTheme();
     const queryClient = useQueryClient();
-    const [type, setType] = useState<'sick' | 'permit'>('permit');
+    const [type, setType] = useState<'sick' | 'permit' | 'forgot'>('permit');
     const [startDate, setStartDate] = useState<Date | null>(new Date());
     const [endDate, setEndDate] = useState<Date | null>(new Date());
     const [reason, setReason] = useState('');
     const [evidence, setEvidence] = useState<string | null>(null);
+
+    React.useEffect(() => {
+        if (open) {
+            const date = initialDate || new Date();
+            setStartDate(date);
+            setEndDate(date);
+        }
+    }, [open, initialDate]);
 
     const { data: settings } = useQuery({
         queryKey: ['leave-settings'],
@@ -193,6 +203,7 @@ const LeaveRequestDialog: React.FC<LeaveRequestDialogProps> = ({ open, onClose, 
                         >
                             <MenuItem value="sick">Sick Leave</MenuItem>
                             <MenuItem value="permit">Permit / Other</MenuItem>
+                            <MenuItem value="forgot"><FormattedMessage id="dashboard.leave.type.forgot" /></MenuItem>
                         </Select>
                     </FormControl>
 
@@ -249,6 +260,12 @@ const LeaveRequestDialog: React.FC<LeaveRequestDialogProps> = ({ open, onClose, 
                                     <CalendarTick size={14} variant="Bold" />
                                     Monthly quota: <strong>{usedQuota} / {settings.max_monthly_quota} days</strong> used.
                                 </Typography>
+                                {type === 'forgot' && (
+                                    <Typography variant="caption" color="primary" sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                        <CalendarTick size={14} variant="Bold" />
+                                        <FormattedMessage id="dashboard.leave.forgot_desc" />
+                                    </Typography>
+                                )}
                             </Stack>
                         </Box>
                     )}

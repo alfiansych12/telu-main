@@ -50,6 +50,7 @@ export async function getMonthlyReportData(filters: {
                 id: true,
                 name: true,
                 email: true,
+                institution_name: true,
                 unit: {
                     select: { name: true }
                 },
@@ -107,10 +108,12 @@ export async function getMonthlyReportData(filters: {
 
             return {
                 user: {
+                    id: user.id,
                     name: user.name,
                     email: user.email,
                     unit: user.unit?.name || 'N/A',
-                    supervisor: user.supervisor?.name || 'N/A'
+                    supervisor: user.supervisor?.name || 'N/A',
+                    institution_name: user.institution_name
                 },
                 stats: attendanceStats,
                 attendances: user.attendances,

@@ -24,7 +24,19 @@ import RecentActivityTimeline from './components/RecentActivityTimeline';
 import TodayAttendanceTable from './components/TodayAttendanceTable';
 import AttendanceCharts from './components/AttendanceCharts';
 
+// DIALOGS
+import UserDialog from './components/UserDialog';
+import UnitDialog from './components/UnitDialog';
+
+// API & UTILS
+import { createUser } from 'utils/api/users';
+import { createUnit } from 'utils/api/units';
+import { getManagementPageData } from 'utils/api/batch';
+import { openAlert } from 'api/alert';
+import { format } from 'date-fns';
+
 import { useIntl, FormattedMessage } from 'react-intl';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 const AdminDashboard = () => {
   const theme = useTheme();
@@ -32,6 +44,81 @@ const AdminDashboard = () => {
   const today = new Date().toISOString().split('T')[0];
   const [selectedDate, setSelectedDate] = useState(today);
   const [chartType, setChartType] = useState<'doughnut' | 'pie' | 'bar' | 'line'>('doughnut');
+
+  const queryClient = useQueryClient();
+
+  // Dialog State
+  const [userDialogOpen, setUserDialogOpen] = useState(false);
+  const [unitDialogOpen, setUnitDialogOpen] = useState(false);
+
+  // Reference Data for UserDialog
+  const { data: referenceData } = useQuery({
+    queryKey: ['management-reference-data'],
+    queryFn: () => getManagementPageData({ fetchOnlyReference: true }),
+    staleTime: 300000,
+  });
+
+  const allUnitsData = referenceData?.allUnitsData;
+  const allSupervisorsData = referenceData?.allSupervisorsData;
+
+  // Mutations
+  const createUserMutation = useMutation({
+    mutationFn: createUser,
+    onSuccess: (newUser: any) => {
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      setUserDialogOpen(false);
+      openAlert({
+        variant: 'success',
+        title: 'User Created',
+        message: `User ${newUser.name} has been successfully added.`
+      });
+    },
+    onError: (error: any) => {
+      openAlert({
+        variant: 'error',
+        title: 'Creation Failed',
+        message: error.message || 'Failed to create user.'
+      });
+    }
+  });
+
+  const createUnitMutation = useMutation({
+    mutationFn: createUnit,
+    onSuccess: (newUnit: any) => {
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      setUnitDialogOpen(false);
+      openAlert({
+        variant: 'success',
+        title: 'Unit Created',
+        message: `Unit ${newUnit.name} has been successfully created.`
+      });
+    },
+    onError: (error: any) => {
+      openAlert({
+        variant: 'error',
+        title: 'Creation Failed',
+        message: error.message || 'Failed to create unit.'
+      });
+    }
+  });
+
+  const handleUserSubmit = (values: any) => {
+    const data = {
+      ...values,
+      unit_id: values.unit_id || null,
+      supervisor_id: values.role === 'participant' ? values.supervisor_id : null,
+      internship_start: values.internship_start ? format(new Date(values.internship_start), 'yyyy-MM-dd') : null,
+      internship_end: values.internship_end ? format(new Date(values.internship_end), 'yyyy-MM-dd') : null
+    };
+    createUserMutation.mutate(data);
+  };
+
+  const handleUnitSubmit = (data: any) => {
+    createUnitMutation.mutate(data);
+  };
+
+  const [activityPageSize, setActivityPageSize] = useState(5);
+  const [todayPageSize, setTodayPageSize] = useState(5);
 
   // Fetch dashboard stats
   const { data: stats, isLoading: statsLoading } = useQuery({
@@ -48,17 +135,23 @@ const AdminDashboard = () => {
   });
 
   const { data: recentAttendancesData, isLoading: activityLoading } = useQuery({
-    queryKey: ['recent-attendances', selectedDate],
+    queryKey: ['recent-attendances', selectedDate, activityPageSize],
     queryFn: () => getAttendances({
       dateFrom: selectedDate,
       dateTo: selectedDate,
-      pageSize: 10
+      pageSize: activityPageSize,
+      page: 1 // Always first page for dashboard overview, just changing the limit
     }),
   });
 
   const { data: todayAttendancesData, isLoading: todayLoading } = useQuery({
-    queryKey: ['today-attendances', selectedDate],
-    queryFn: () => getAttendances({ dateFrom: selectedDate, dateTo: selectedDate, pageSize: 10 }),
+    queryKey: ['today-attendances', selectedDate, todayPageSize],
+    queryFn: () => getAttendances({
+      dateFrom: selectedDate,
+      dateTo: selectedDate,
+      pageSize: todayPageSize,
+      page: 1
+    }),
   });
 
   // Derived values - safely handle null/undefined
@@ -144,6 +237,8 @@ const AdminDashboard = () => {
                 getStatusColor={getStatusColor}
                 getStatusBg={getStatusBg}
                 getStatusIcon={getStatusIcon}
+                pageSize={activityPageSize}
+                setPageSize={setActivityPageSize}
               />
 
               <TodayAttendanceTable
@@ -151,10 +246,11 @@ const AdminDashboard = () => {
                 isLoading={todayLoading}
                 getStatusColor={getStatusColor}
                 getStatusBg={getStatusBg}
+                pageSize={todayPageSize}
+                setPageSize={setTodayPageSize}
               />
             </Stack>
           </Grid>
-
           <Grid item xs={12} lg={7}>
             <AttendanceCharts
               chartType={chartType}
@@ -168,6 +264,29 @@ const AdminDashboard = () => {
           </Grid>
         </Grid>
       )}
+
+      {/* Dialogs */}
+      <UserDialog
+        open={userDialogOpen}
+        onClose={() => setUserDialogOpen(false)}
+        mode="create"
+        user={null}
+        onSubmit={handleUserSubmit}
+        error={createUserMutation.error}
+        isLoading={createUserMutation.isPending}
+        allUnitsData={allUnitsData}
+        allSupervisorsData={allSupervisorsData}
+      />
+
+      <UnitDialog
+        open={unitDialogOpen}
+        onClose={() => setUnitDialogOpen(false)}
+        mode="create"
+        unit={null}
+        onSubmit={handleUnitSubmit}
+        error={createUnitMutation.error}
+        isLoading={createUnitMutation.isPending}
+      />
     </Box>
   );
 };

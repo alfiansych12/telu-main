@@ -9,7 +9,7 @@ import {
     Select,
     MenuItem
 } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
+import { useTheme, alpha } from '@mui/material/styles';
 import {
     Chart as ChartJS,
     ArcElement,
@@ -21,7 +21,8 @@ import {
     Title,
     PointElement,
     LineElement,
-    Filler
+    Filler,
+    RadialLinearScale
 } from 'chart.js';
 import { Doughnut, Bar, Pie, Line } from 'react-chartjs-2';
 import MainCard from 'components/MainCard';
@@ -38,7 +39,8 @@ ChartJS.register(
     Title,
     PointElement,
     LineElement,
-    Filler
+    Filler,
+    RadialLinearScale
 );
 
 interface AttendanceChartsProps {
@@ -240,25 +242,87 @@ const AttendanceCharts = ({
                     }
                 }}
             >
-                <Box sx={{ py: 2 }}>
-                    <Bar
-                        data={placementData}
+                <Box sx={{ py: 2, height: 350 }}>
+                    <Line
+                        data={{
+                            labels: placementData.labels,
+                            datasets: [{
+                                label: placementData.datasets[0].label || 'Activity Placement',
+                                data: placementData.datasets[0].data,
+                                borderColor: theme.palette.error.main,
+                                backgroundColor: alpha(theme.palette.error.main, 0.2),
+                                fill: false,
+                                tension: 0.4,
+                                borderWidth: 3,
+                                pointRadius: 4,
+                                pointBackgroundColor: theme.palette.error.main,
+                                pointBorderColor: '#fff',
+                                pointBorderWidth: 2,
+                                pointHoverRadius: 6,
+                                pointHoverBackgroundColor: '#fff',
+                                pointHoverBorderColor: theme.palette.error.main,
+                                pointHoverBorderWidth: 2,
+                            }]
+                        }}
                         options={{
                             responsive: true,
-                            maintainAspectRatio: true,
+                            maintainAspectRatio: false,
                             plugins: {
                                 legend: {
-                                    display: false
+                                    display: true,
+                                    position: 'top',
+                                    align: 'center',
+                                    labels: {
+                                        boxWidth: 40,
+                                        usePointStyle: false,
+                                        padding: 20,
+                                        font: {
+                                            size: 12
+                                        }
+                                    }
                                 },
-                                title: {
-                                    display: false
+                                tooltip: {
+                                    backgroundColor: theme.palette.background.paper,
+                                    titleColor: theme.palette.text.primary,
+                                    bodyColor: theme.palette.text.secondary,
+                                    borderColor: theme.palette.divider,
+                                    borderWidth: 1,
+                                    padding: 12,
+                                    boxPadding: 6,
+                                    usePointStyle: true,
+                                    callbacks: {
+                                        label: (context: any) => {
+                                            return ` ${context.label}: ${context.raw} ${intl.formatMessage({ id: 'admin.dashboard.participants' }).toLowerCase()}`;
+                                        }
+                                    }
                                 }
                             },
                             scales: {
+                                x: {
+                                    grid: {
+                                        display: true,
+                                        color: alpha(theme.palette.divider, 0.1)
+                                    },
+                                    ticks: {
+                                        color: theme.palette.text.secondary,
+                                        font: {
+                                            size: 11
+                                        }
+                                    }
+                                },
                                 y: {
                                     beginAtZero: true,
+                                    grid: {
+                                        display: true,
+                                        color: alpha(theme.palette.divider, 0.1)
+                                    },
                                     ticks: {
-                                        stepSize: 2
+                                        stepSize: 1,
+                                        color: theme.palette.text.secondary,
+                                        font: {
+                                            size: 11
+                                        },
+                                        padding: 10
                                     }
                                 }
                             }

@@ -1,101 +1,68 @@
-# Flowchart System (Project Puti)
+# 🌊 Final Flowchart Logic - Project Puti (Base on Code)
 
-Dokumen ini berisi logika alur sistem yang dapat digunakan pada **[CodeToFlow](https://codetoflow.com/)** (menggunakan format pseudo-code/JS) atau divisualisasikan langsung di Markdown menggunakan **Mermaid**.
+Dokumen ini adalah referensi final untuk alur kerja sistem **PuTI**, yang disusun berdasarkan logika kode aktual (API, Role, dan Database).
 
-## 1. Alur Presensi Harian (Check-in & Check-out)
-Salin kode di bawah ini ke **CodeToFlow.com** untuk melihat flow yang interaktif.
+---
 
-```javascript
-// Logic for codetoflow.com
-function dailyAttendanceFlow() {
-  start();
-  openDashboard();
-  
-  if (isUserOnLeave()) {
-    showStatus("Time to Rest");
-    hideMap();
-    return;
-  }
+### 🎨 Teks Kode Mermaid.js (Final)
+Gunakan kode di bawah ini pada [Mermaid Live Editor](https://mermaid.live/) untuk menghasilkan diagram alir.
 
-  fetchGPSLocation();
-
-  if (isAlreadyCheckedOut()) {
-    showSummary("All Done");
-    stop();
-  } else if (!isAlreadyCheckedIn()) {
-    if (userClicksCheckIn()) {
-      calculateDistanceToUnit();
-      
-      if (isInRadius() || hasWFAApproval()) {
-        saveCheckInToDatabase();
-        updateUI("Checked-in State");
-      } else {
-        showAlert("Out of Area");
-        offerWFARequest();
-      }
-    }
-  } else {
-    // Stage: Checked-in, Waiting for Check-out
-    inputDailyActivity();
-    uploadEvidencePhoto();
-    
-    if (userClicksCheckOut()) {
-      updateAttendanceRecord();
-      sendSuccessNotification();
-      showWorkSummary();
-    }
-  }
-  
-  stop();
-}
-```
-
-## 2. Mermaid Flowchart (Direct Markdown Support)
-Diagram ini dapat langsung dirender oleh GitHub, VS Code (dengan plugin Mermaid), atau [Mermaid Live Editor](https://mermaid.live/).
-
-### A. Alur Absensi & Geofencing
 ```mermaid
 graph TD
-    A[Mulai] --> B{Status Hari Ini?}
-    B -- Sedang Izin --> C[Tampilkan 'Time to Rest']
-    B -- Sudah Check-out --> D[Tampilkan Ringkasan Kerja]
-    B -- Aktif --> E[Ambil Koordinat GPS]
+    %% Styling
+    classDef admin fill:#f96,stroke:#333,stroke-width:2px;
+    classDef super fill:#bbf,stroke:#333,stroke-width:2px;
+    classDef part fill:#bfb,stroke:#333,stroke-width:2px;
+
+    Start((Mulai)) --> Login[Halaman Login]
+    Login --> Auth{Validasi Role?}
     
-    E --> F{Sudah Check-in?}
-    F -- Belum --> G[Klik Tombol Check-in]
-    G --> H{Dalam Radius / Ada Izin WFA?}
-    H -- Ya --> I[Simpan Check-in & Update UI]
-    H -- Tidak --> J[Tampilkan Error & Opsi WFA]
+    %% Alur Admin
+    Auth -- Admin --> AdminDB[Dashboard Admin]
+    AdminDB --> SetupUnit[Buat Unit & Kapasitas]
+    SetupUnit --> AssignSuper[Assign Supervisor ke Unit]
+    AssignSuper --> ImportData[Bulk Import Peserta .xlsx]
+    ImportData --> AdminRule[Setting Geofence & Jam Kerja]
     
-    F -- Sudah --> K[Input Aktivitas & Upload Foto]
-    K --> L[Klik Tombol Check-out]
-    L --> M[Update Data di PostgreSQL]
-    M --> N[Kirim Notifikasi Berhasil]
-    N --> D
+    %% Alur Participant
+    Auth -- Participant --> PartDB[Dashboard User]
+    PartDB --> Profile[Update Foto & Profil]
+    Profile --> Attend{Klik Check-in}
+    Attend -- Luar Radius --> ReqLoc[Ajukan Request Lokasi]
+    Attend -- Dalam Radius --> Success[Absensi Berhasil]
     
-    C --> O[Selesai]
-    D --> O
-    J --> O
+    %% Alur Supervisor
+    Auth -- Supervisor --> SuperDB[Dashboard Supervisor]
+    SuperDB --> Monitor[Monitoring Kehadiran Tim]
+    Monitor --> Approval{Review Request?}
+    Approval -- Izin/Luar Area --> Accept[Approved]
+    Accept --> Notify[Notifikasi ke Partisipan]
+    
+    %% Akhir
+    AdminRule --> End((Selesai))
+    Success --> End
+    Notify --> End
+
+    class AdminDB,SetupUnit,AssignSuper,ImportData,AdminRule admin;
+    class SuperDB,Monitor,Approval,Accept super;
+    class PartDB,Profile,Attend,ReqLoc,Success part;
 ```
 
-### B. Alur Pengajuan Izin
-```mermaid
-graph LR
-    A[Mulai] --> B[Input Form Izin & Bukti]
-    B --> C[Simpan ke Database - Status PENDING]
-    C --> D[Kirim Notifikasi ke Supervisor]
-    D --> E{Keputusan Supervisor?}
-    E -- Disetujui --> F[Update Database - APPROVED]
-    E -- Ditolak --> G[Update Database - REJECTED]
-    F --> H[Kirim Notifikasi ke Peserta]
-    G --> H
-    H --> I[Selesai]
-```
+---
 
-## Referensi Converter & Tools
-Jika Anda ingin menerjemahkan flowchart ke format lain, berikut referensi terbaik:
+### 📖 Penjelasan Logika (Base on Code)
 
-1.  **[Mermaid Live Editor](https://mermaid.live/)**: Standar industri untuk mengubah teks (Mermaid Syntax) menjadi diagram (SVG/PNG). Sangat direkomendasikan karena integrasi Markdown-nya sangat luas.
-2.  **[CodeToFlow](https://codetoflow.com/)**: Sangat bagus jika Anda memiliki logika pemrograman (JavaScript/Java) dan ingin melihat alur logikanya secara otomatis.
-3.  **[Draw.io (Integration)](https://app.diagrams.net/)**: Anda bisa mengimpor kode Mermaid/PlantUML ke dalam Draw.io untuk editing manual yang lebih fleksibel.
-4.  **[PlantUML Online Server](https://www.plantuml.com/plantuml/)**: Fokus pada diagram teknis yang sangat detail (seperti yang ada di file PPL sebelumnya).
+1.  **Otentikasi & Authorization**:
+    *   Sistem memvalidasi kredensial (Telkom SSO/Manual) dan membaca `UserRole` dari database untuk menentukan rute dashboard yang dituju.
+2.  **Manajemen Data (Admin)**:
+    *   Logika pembuatan unit (`Unit` model) wajib dilakukan sebelum *assignment*. 
+    *   Penggunaan *Bulk Import* memvalidasi data excel agar sesuai dengan skema tabel `users`.
+3.  **Presensi & Geofencing (Participant)**:
+    *   `Check-in` melibatkan deteksi koordinat GPS yang dibandingkan dengan `MapSettings` (API validation).
+    *   Jika koordinat di luar radius, sistem memicu pembuatan record pada tabel `monitoring_locations` (Request Loc).
+4.  **Monitoring & Evaluasi (Supervisor)**:
+    *   Supervisor mengakses record dari `monitoring_locations` dan `leave_requests` untuk melakukan aksi `updateStatus` (Approved/Rejected).
+    *   Data penilaian disimpan dalam model `Assessment`.
+
+---
+**Status Dokumen:** Final & Verified Based on Source Code.

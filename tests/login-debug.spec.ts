@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test } from '@playwright/test';
 
 /**
  * Simple Login Test
@@ -13,8 +13,6 @@ test.describe('Login Form Debug', () => {
         // Take screenshot
         await page.screenshot({ path: 'test-results/login-page.png', fullPage: true });
 
-        // Log page content
-        const content = await page.content();
         console.log('Page title:', await page.title());
 
         // Check for input fields

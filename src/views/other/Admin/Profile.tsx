@@ -45,6 +45,7 @@ export default function ProfilePage() {
   const [formData, setFormData] = useState({
     name: user?.name || '',
     email: user?.email || '',
+    telegram_username: user?.telegram_username || '',
     password: '',
     confirmPassword: ''
   });
@@ -56,7 +57,8 @@ export default function ProfilePage() {
     onSuccess: async () => {
       await updateSession({
         name: formData.name,
-        email: formData.email
+        email: formData.email,
+        telegram_username: formData.telegram_username
       });
       queryClient.invalidateQueries({ queryKey: ['user-profile', user?.id] });
       openAlert({
@@ -87,7 +89,8 @@ export default function ProfilePage() {
 
     const payload: any = {
       name: formData.name,
-      email: formData.email
+      email: formData.email,
+      telegram_username: formData.telegram_username
     };
 
     if (formData.password) {
@@ -215,7 +218,7 @@ export default function ProfilePage() {
 
                 <Grid item xs={12} sm={6}>
                   <Stack spacing={1}>
-                    <InputLabel>Username</InputLabel>
+                    <InputLabel>Username (Email)</InputLabel>
                     <TextField
                       fullWidth
                       value={formData.email}
@@ -223,6 +226,39 @@ export default function ProfilePage() {
                       placeholder="Enter username"
                     />
                   </Stack>
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <Stack spacing={1}>
+                    <InputLabel>Telegram Username</InputLabel>
+                    <TextField
+                      fullWidth
+                      value={formData.telegram_username}
+                      onChange={(e) => setFormData({ ...formData, telegram_username: e.target.value })}
+                      placeholder="e.g. adityamnss"
+                      helperText={
+                        <Typography variant="caption" color="textSecondary" component="div">
+                          Gunakan username Telegram tanpa tanda @.
+                        </Typography>
+                      }
+                    />
+                  </Stack>
+                </Grid>
+
+                <Grid item xs={12}>
+                  <Alert severity="info" variant="outlined" sx={{ borderStyle: 'dashed' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      Cara Mengaktifkan Notifikasi Telegram:
+                    </Typography>
+                    <ol style={{ margin: '8px 0', paddingLeft: '20px', fontSize: '0.875rem' }}>
+                      <li>Buka Telegram dan pastikan anda sudah memiliki <b>Username</b> di pengaturan Telegram.</li>
+                      <li>Masukkan username tersebut (contoh: <b>adityamnss</b>) pada kolom di atas.</li>
+                      <li><b>WAJIB:</b> Cari dan buka <b>@puti_servicedesk_bot</b> lalu klik tombol <b>START</b>.</li>
+                    </ol>
+                    <Typography variant="caption">
+                      Tanpa menekan <b>START</b> pada @puti_servicedesk_bot, sistem tidak diizinkan mengirim pesan ke anda.
+                    </Typography>
+                  </Alert>
                 </Grid>
 
                 <Grid item xs={12}>
@@ -267,7 +303,7 @@ export default function ProfilePage() {
 
                 <Grid item xs={12}>
                   <Stack direction="row" spacing={2} justifyContent="flex-end" sx={{ mt: 2 }}>
-                    <Button variant="outlined" color="secondary" onClick={() => setFormData({ name: user.name, email: user.email, password: '', confirmPassword: '' })}>Reset</Button>
+                    <Button variant="outlined" color="secondary" onClick={() => setFormData({ name: user.name, email: user.email, telegram_username: user.telegram_username, password: '', confirmPassword: '' })}>Reset</Button>
                     <Button
                       variant="contained"
                       type="submit"

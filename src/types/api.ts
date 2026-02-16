@@ -36,6 +36,7 @@ export interface UserWithRelations {
     institution_name?: string | null;
     institution_type?: string | null;
     personal_email?: string | null;
+    telegram_username?: string | null;
     supervisor_id: string | null;
     supervisor_name?: string | null;
     unit?: {
@@ -85,6 +86,7 @@ export interface AttendanceWithRelations {
         unit?: {
             name: string;
         } | null;
+        institution_name?: string | null;
     };
 }
 
@@ -128,9 +130,10 @@ export interface AssessmentWithRelations {
     id: string;
     user_id: string;
     evaluator_id: string;
-    soft_skill: number;
-    hard_skill: number;
-    attitude: number;
+    category: string | null;
+    soft_skill: any;
+    hard_skill: any;
+    attitude: any;
     remarks: string | null;
     period: string | null;
     created_at: Date | null;

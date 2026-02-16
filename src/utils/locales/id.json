@@ -302,5 +302,17 @@
   "internship.finished.team": "- Tim PUTI Telkom University",
   "internship.finished.view_profile": "Lihat Profil",
   "internship.finished.download_cert": "Unduh Sertifikat Digital",
-  "dashboard.data_fetch_failed": "Gagal mengambil data dashboard. Harap muat ulang halaman atau coba lagi nanti."
+  "dashboard.data_fetch_failed": "Gagal mengambil data dashboard. Harap muat ulang halaman atau coba lagi nanti.",
+  "dashboard.attendance.forgotten_history": "Riwayat Tanggal Kelupaan",
+  "dashboard.attendance.forgot_checkout": "Lupa Check-out",
+  "dashboard.attendance.forgot_checkin": "Lupa Absen",
+  "dashboard.attendance.forgotten_msg": "Berikut adalah daftar hari di mana Anda melewatkan absensi masuk atau keluar.",
+  "dashboard.attendance.forgotten_empty": "Bagus! Anda tidak memiliki riwayat kelupaan.",
+  "dashboard.leave.type.forgot": "Lupa Absensi (Koreksi)",
+  "dashboard.leave.forgot_desc": "* Gunakan ini untuk mengajukan koreksi kehadiran jika Anda hadir tetapi lupa melakukan check-in/out. Status akan menjadi 'Hadir' setelah disetujui.",
+  "monitoring.leave.overdue": "TERLAMBAT",
+  "monitoring.leave.waiting_time": "Menunggu",
+  "monitoring.leave.days": "hari",
+  "monitoring.leave.hours": "jam",
+  "dashboard.leave.overdue_msg": "Sudah > 24 jam - Harap hubungi supervisor Anda secara langsung."
 }

@@ -14,12 +14,21 @@ export interface LeaveRequestFilters {
     status?: RequestStatus;
     page?: number;
     pageSize?: number;
+    autoApprove?: boolean;
 }
 
 /**
  * Get leave requests with optional filters
  */
 export async function getLeaveRequests(filters: LeaveRequestFilters = {}) {
+    if (filters.autoApprove !== false) {
+        try {
+            await autoApproveExpiredRequests();
+        } catch (e) {
+            console.error('Failed to auto-approve:', e);
+        }
+    }
+
     const session = await getserverAuthSession();
     if (!session) {
         throw new Error('Unauthorized');
@@ -150,20 +159,22 @@ export async function createLeaveRequest(data: any) {
             throw new Error('Wajib melampirkan bukti foto (surat dokter/foto obat) untuk izin sakit.');
         }
 
-        // 3. Check Monthly Quota
-        // Get start and end of current month
-        const now = new Date();
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        // 3. Check Monthly Quota for the month of the requested leave
+        // Use the month of the start date for quota calculation
+        const refDate = startDate;
+        const qStartOfMonth = new Date(refDate.getFullYear(), refDate.getMonth(), 1);
+        const qEndOfMonth = new Date(refDate.getFullYear(), refDate.getMonth() + 1, 0);
 
         const existingRequests = await prisma.leaveRequest.findMany({
             where: {
                 user_id: data.user_id,
                 status: { in: ['approved', 'pending'] },
-                start_date: {
-                    gte: startOfMonth,
-                    lte: endOfMonth
-                }
+                OR: [
+                    {
+                        start_date: { lte: qEndOfMonth },
+                        end_date: { gte: qStartOfMonth }
+                    }
+                ]
             }
         });
 
@@ -171,16 +182,17 @@ export async function createLeaveRequest(data: any) {
         existingRequests.forEach(req => {
             const s = new Date(req.start_date);
             const e = new Date(req.end_date);
-            // Only count days falling within this month
-            const effectiveStart = s < startOfMonth ? startOfMonth : s;
-            const effectiveEnd = e > endOfMonth ? endOfMonth : e;
+            // Only count days falling within the reference month
+            const effectiveStart = s < qStartOfMonth ? qStartOfMonth : s;
+            const effectiveEnd = e > qEndOfMonth ? qEndOfMonth : e;
             const days = Math.ceil((effectiveEnd.getTime() - effectiveStart.getTime()) / (1000 * 3600 * 24)) + 1;
             usedQuota += Math.max(0, days);
         });
 
         if ((usedQuota + durationDays) > settings.max_monthly_quota) {
             const remaining = Math.max(0, settings.max_monthly_quota - usedQuota);
-            throw new Error(`Anda telah mencapai batas kuota izin bulanan. Kuota tersisa: ${remaining} hari. Pengajuan ini butuh ${durationDays} hari.`);
+            const monthName = refDate.toLocaleString('default', { month: 'long' });
+            throw new Error(`Batas kuota izin bulan ${monthName} telah mencapai batas. Kuota tersisa: ${remaining} hari. Pengajuan ini butuh ${durationDays} hari.`);
         }
 
         const leaveRequest = await prisma.leaveRequest.create({
@@ -198,7 +210,7 @@ export async function createLeaveRequest(data: any) {
             action: 'CREATE_LEAVE_REQUEST',
             entity: 'LeaveRequest',
             entityId: leaveRequest.id,
-            details: { type: leaveRequest.type, start: leaveRequest.start_date, end: leaveRequest.end_date }
+            details: { type: leaveRequest.type, start: leaveRequest.start_date, end: leaveRequest.end_date, reason: leaveRequest.reason }
         });
 
         // Notify Supervisor
@@ -208,9 +220,10 @@ export async function createLeaveRequest(data: any) {
         });
 
         if (requester?.supervisor_id) {
+            const typeLabel = data.type === 'forgot' ? 'Attendance Correction' : data.type.toUpperCase();
             await createNotification({
                 userId: requester.supervisor_id,
-                title: `New Leave Request: ${data.type.toUpperCase()}`,
+                title: `New Request: ${typeLabel}`,
                 message: `${requester.name} has submitted a ${data.type} request for ${new Date(data.start_date).toLocaleDateString()} - ${new Date(data.end_date).toLocaleDateString()}. Reason: ${data.reason || '-'}`,
                 type: 'leave',
                 link: `/Monitoringsuper?requestId=${leaveRequest.id}`
@@ -224,15 +237,20 @@ export async function createLeaveRequest(data: any) {
     }
 }
 
-/**
- * Update leave request status (Approve/Reject)
- */
 export async function updateLeaveRequestStatus(id: string, status: RequestStatus, notes?: string) {
     const session = await getserverAuthSession();
     if (!session || (session.user as any).role === 'participant') {
         throw new Error('Unauthorized: Only supervisors or admins can update request status');
     }
 
+    return executeLeaveRequestUpdate(id, status, notes);
+}
+
+/**
+ * Internal function to handle the update logic without session checks
+ * This allows system-level updates (auto-approval)
+ */
+async function executeLeaveRequestUpdate(id: string, status: RequestStatus, notes?: string) {
     try {
         const request = await prisma.leaveRequest.update({
             where: { id },
@@ -258,6 +276,10 @@ export async function updateLeaveRequestStatus(id: string, status: RequestStatus
 
             for (const date of dates) {
                 try {
+                    let attendanceStatus: 'present' | 'sick' | 'permit' = 'permit';
+                    if (request.type === 'sick') attendanceStatus = 'sick';
+                    if (request.type === 'forgot' as any) attendanceStatus = 'present';
+
                     // Create or update attendance
                     await prisma.attendance.upsert({
                         where: {
@@ -267,20 +289,22 @@ export async function updateLeaveRequestStatus(id: string, status: RequestStatus
                             }
                         },
                         update: {
-                            status: request.type === 'sick' ? 'sick' : 'permit',
+                            status: attendanceStatus,
                             activity_description: JSON.stringify({
                                 via: 'leave-request',
                                 request_id: request.id,
+                                type: request.type,
                                 reason: request.reason
                             })
                         },
                         create: {
                             user_id: request.user_id,
                             date: date,
-                            status: request.type === 'sick' ? 'sick' : 'permit',
+                            status: attendanceStatus,
                             activity_description: JSON.stringify({
                                 via: 'leave-request',
                                 request_id: request.id,
+                                type: request.type,
                                 reason: request.reason
                             })
                         }
@@ -353,6 +377,49 @@ export async function getLeaveRequestById(id: string) {
         return request;
     } catch (error) {
         console.error('Error fetching leave request:', error);
+        throw error;
+    }
+}
+
+/**
+ * Auto-approve pending requests older than 24 hours
+ */
+export async function autoApproveExpiredRequests() {
+    const oneDayAgo = new Date();
+    oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+
+    try {
+        // Find all pending requests created more than 24 hours ago
+        const expiredRequests = await prisma.leaveRequest.findMany({
+            where: {
+                status: 'pending',
+                created_at: {
+                    lte: oneDayAgo
+                }
+            },
+            select: {
+                id: true
+            }
+        });
+
+        if (expiredRequests.length === 0) return { count: 0 };
+
+        console.log(`[System] Auto-approving ${expiredRequests.length} expired leave requests...`);
+
+        let count = 0;
+        for (const req of expiredRequests) {
+            try {
+                // Use the internal function to bypass session checks
+                await executeLeaveRequestUpdate(req.id, 'approved', 'System Auto-Approved (No response from supervisor for 24 hours)');
+                count++;
+            } catch (err) {
+                console.error(`Failed to auto-approve request ${req.id}:`, err);
+            }
+        }
+
+        return { count };
+    } catch (error) {
+        console.error('Error in autoApproveExpiredRequests:', error);
         throw error;
     }
 }

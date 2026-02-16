@@ -308,5 +308,17 @@
   "internship.finished.team": "- PUTI Telkom University Team",
   "internship.finished.view_profile": "View Profile",
   "internship.finished.download_cert": "Download Digital Certificate",
-  "dashboard.data_fetch_failed": "Failed to fetch dashboard data. Please reload the page or try again later."
+  "dashboard.data_fetch_failed": "Failed to fetch dashboard data. Please reload the page or try again later.",
+  "dashboard.attendance.forgotten_history": "Forgotten Date History",
+  "dashboard.attendance.forgot_checkout": "Forgot Check-out",
+  "dashboard.attendance.forgot_checkin": "Forgot Absen",
+  "dashboard.attendance.forgotten_msg": "Here is a list of days where you missed check-in or check-out.",
+  "dashboard.attendance.forgotten_empty": "Great! You have no forgotten history.",
+  "dashboard.leave.type.forgot": "Forgot Attendance (Correction)",
+  "dashboard.leave.forgot_desc": "* Use this to request attendance correction if you were present but forgot to check-in/out. This will be marked as 'Present' upon approval.",
+  "monitoring.leave.overdue": "OVERDUE",
+  "monitoring.leave.waiting_time": "Waiting",
+  "monitoring.leave.days": "days",
+  "monitoring.leave.hours": "hours",
+  "dashboard.leave.overdue_msg": "Over 24h - Please contact your supervisor directly."
 }

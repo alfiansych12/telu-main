@@ -53,6 +53,7 @@ export default function ProfilePage() {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    telegram_username: '',
     photo: '',
     phone: '',
     institution_name: '',
@@ -69,6 +70,7 @@ export default function ProfilePage() {
         ...prev,
         name: userData.name || '',
         email: userData.email || '',
+        telegram_username: userData.telegram_username || '',
         photo: userData.photo || '',
         phone: userData.phone || '',
         institution_name: userData.institution_name || '',
@@ -89,6 +91,7 @@ export default function ProfilePage() {
         name: formData.name,
         photo: formData.photo,
         email: formData.email,
+        telegram_username: formData.telegram_username,
         phone: formData.phone,
         institution_name: formData.institution_name,
         institution_type: formData.institution_type,
@@ -124,6 +127,7 @@ export default function ProfilePage() {
     const payload: any = {
       name: formData.name,
       email: formData.email,
+      telegram_username: formData.telegram_username,
       photo: formData.photo,
       phone: formData.phone,
       institution_name: formData.institution_name,
@@ -314,6 +318,39 @@ export default function ProfilePage() {
                   </Stack>
                 </Grid>
 
+                <Grid item xs={12} sm={6}>
+                  <Stack spacing={1}>
+                    <InputLabel>Telegram Username</InputLabel>
+                    <TextField
+                      fullWidth
+                      value={formData.telegram_username}
+                      onChange={(e) => setFormData({ ...formData, telegram_username: e.target.value })}
+                      placeholder="e.g. adityamnss"
+                      helperText={
+                        <Typography variant="caption" color="textSecondary" component="div">
+                          Gunakan username Telegram Anda tanpa tanda @.
+                        </Typography>
+                      }
+                    />
+                  </Stack>
+                </Grid>
+
+                <Grid item xs={12}>
+                  <Alert severity="info" variant="outlined" sx={{ borderStyle: 'dashed' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      Cara Mengaktifkan Notifikasi Telegram:
+                    </Typography>
+                    <ol style={{ margin: '8px 0', paddingLeft: '20px', fontSize: '0.875rem' }}>
+                      <li>Buka Telegram dan pastikan Anda sudah mengatur <b>Username</b> di pengaturan Telegram Anda.</li>
+                      <li>Masukkan username tersebut (contoh: <b>adityamnss</b>) pada kolom <b>Telegram Username</b> di atas.</li>
+                      <li><b>WAJIB:</b> Cari dan buka <b>@puti_servicedesk_bot</b> lalu klik tombol <b>START</b>.</li>
+                    </ol>
+                    <Typography variant="caption">
+                      Pesan tidak akan terkirim jika Anda belum menekan <b>START</b> pada @puti_servicedesk_bot.
+                    </Typography>
+                  </Alert>
+                </Grid>
+
                 <Grid item xs={12}>
                   <Divider sx={{ my: 1 }}>
                     <Chip label="Personal Identity & Education" size="small" variant="outlined" />
@@ -418,6 +455,7 @@ export default function ProfilePage() {
                     <Button variant="outlined" color="secondary" onClick={() => setFormData({
                       name: displayUser.name || '',
                       email: displayUser.email || '',
+                      telegram_username: displayUser.telegram_username || '',
                       photo: displayUser.photo || '',
                       phone: displayUser.phone || '',
                       institution_name: displayUser.institution_name || '',

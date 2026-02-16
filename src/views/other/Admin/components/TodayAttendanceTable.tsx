@@ -13,7 +13,9 @@ import {
     TableCell,
     TableContainer,
     TableHead,
-    TableRow
+    TableRow,
+    MenuItem,
+    TextField
 } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import { CalendarTick } from 'iconsax-react';
@@ -26,13 +28,17 @@ interface TodayAttendanceTableProps {
     isLoading: boolean;
     getStatusColor: (status: string) => string;
     getStatusBg: (status: string) => string;
+    pageSize: number;
+    setPageSize: (size: number) => void;
 }
 
 const TodayAttendanceTable = ({
     todayAttendances,
     isLoading,
     getStatusColor,
-    getStatusBg
+    getStatusBg,
+    pageSize,
+    setPageSize
 }: TodayAttendanceTableProps) => {
     const theme = useTheme();
     const intl = useIntl();
@@ -40,11 +46,33 @@ const TodayAttendanceTable = ({
     return (
         <MainCard
             title={
-                <Stack direction="row" spacing={1.25} alignItems="center">
-                    <CalendarTick size={20} color={theme.palette.primary.main} variant="Bulk" />
-                    <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                        <FormattedMessage id="admin.dashboard.attendance_today" />
-                    </Typography>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ width: '100%' }}>
+                    <Stack direction="row" spacing={1.25} alignItems="center">
+                        <CalendarTick size={20} color={theme.palette.primary.main} variant="Bulk" />
+                        <Typography variant="h5" sx={{ fontWeight: 700 }}>
+                            <FormattedMessage id="admin.dashboard.attendance_today" />
+                        </Typography>
+                    </Stack>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                        <Typography variant="caption" color="textSecondary">Rows:</Typography>
+                        <TextField
+                            select
+                            size="small"
+                            value={pageSize}
+                            onChange={(e) => setPageSize(Number(e.target.value))}
+                            sx={{
+                                width: 70,
+                                '& .MuiOutlinedInput-root': {
+                                    height: 30,
+                                    fontSize: '0.875rem'
+                                }
+                            }}
+                        >
+                            <MenuItem value={5}>5</MenuItem>
+                            <MenuItem value={10}>10</MenuItem>
+                            <MenuItem value={25}>25</MenuItem>
+                        </TextField>
+                    </Stack>
                 </Stack>
             }
             sx={{

@@ -28,9 +28,17 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getLeaveRequests, updateLeaveRequestStatus, getLeaveRequestById } from 'utils/api/leaves';
 import { Eye, TickCircle, CloseCircle } from 'iconsax-react';
-import { alpha, useTheme } from '@mui/material/styles';
+import { alpha, useTheme, keyframes } from '@mui/material/styles';
 import { formatDate } from 'utils/format';
 import { openAlert } from 'api/alert';
+import { FormattedMessage, useIntl } from 'react-intl';
+import { differenceInHours, differenceInDays } from 'date-fns';
+
+const pulseEffect = keyframes`
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.1); opacity: 0.7; }
+  100% { transform: scale(1); opacity: 1; }
+`;
 
 interface LeaveRequestListProps {
     supervisorId?: string;
@@ -43,6 +51,7 @@ const LeaveRequestList: React.FC<LeaveRequestListProps> = ({ supervisorId, unitI
     const searchParams = useSearchParams();
     const router = useRouter();
     const pathname = usePathname();
+    const intl = useIntl();
     const requestIdParam = searchParams.get('requestId');
 
     const [selectedRequest, setSelectedRequest] = useState<any>(null);
@@ -138,10 +147,10 @@ const LeaveRequestList: React.FC<LeaveRequestListProps> = ({ supervisorId, unitI
                 <Table size="small">
                     <TableHead sx={{ bgcolor: theme.palette.grey[50] }}>
                         <TableRow>
-                            <TableCell sx={{ fontWeight: 600 }}>Participant</TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>Dates</TableCell>
-                            <TableCell align="center" sx={{ fontWeight: 600 }}>Action</TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}><FormattedMessage id="Participant" defaultMessage="Peserta" /></TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}><FormattedMessage id="Type" defaultMessage="Tipe" /></TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}><FormattedMessage id="Dates" defaultMessage="Tanggal" /></TableCell>
+                            <TableCell align="center" sx={{ fontWeight: 600 }}><FormattedMessage id="Action" defaultMessage="Aksi" /></TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
@@ -152,44 +161,82 @@ const LeaveRequestList: React.FC<LeaveRequestListProps> = ({ supervisorId, unitI
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            requests.map((request: any) => (
-                                <TableRow key={request.id} hover>
-                                    <TableCell>
-                                        <Stack direction="row" spacing={1} alignItems="center">
-                                            <Avatar sx={{ width: 28, height: 28, fontSize: '0.75rem' }}>
-                                                {request.user?.name?.charAt(0) || 'U'}
-                                            </Avatar>
-                                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{request.user?.name}</Typography>
-                                        </Stack>
-                                    </TableCell>
-                                    <TableCell>
-                                        <Chip
-                                            label={request.type}
-                                            size="small"
-                                            color={request.type === 'sick' ? 'error' : 'info'}
-                                            variant="outlined"
-                                            sx={{ textTransform: 'capitalize', height: 20, fontSize: '0.65rem' }}
-                                        />
-                                    </TableCell>
-                                    <TableCell>
-                                        <Typography variant="caption">
-                                            {formatDate(request.start_date)} - {formatDate(request.end_date)}
-                                        </Typography>
-                                    </TableCell>
-                                    <TableCell align="center">
-                                        <IconButton
-                                            size="small"
-                                            color="primary"
-                                            onClick={() => {
-                                                setSelectedRequest(request);
-                                                setDetailDialogOpen(true);
-                                            }}
-                                        >
-                                            <Eye size={16} />
-                                        </IconButton>
-                                    </TableCell>
-                                </TableRow>
-                            ))
+                            requests.map((request: any) => {
+                                const createdDate = new Date(request.created_at || new Date());
+                                const hoursPending = differenceInHours(new Date(), createdDate);
+                                const daysPending = differenceInDays(new Date(), createdDate);
+                                const isOverdue = hoursPending >= 24;
+
+                                return (
+                                    <TableRow key={request.id} hover sx={{
+                                        bgcolor: isOverdue ? alpha(theme.palette.error.lighter, 0.1) : 'inherit',
+                                        transition: 'background-color 0.3s ease'
+                                    }}>
+                                        <TableCell>
+                                            <Stack direction="row" spacing={1} alignItems="center">
+                                                <Avatar sx={{
+                                                    width: 28,
+                                                    height: 28,
+                                                    fontSize: '0.75rem',
+                                                    border: isOverdue ? `2px solid ${theme.palette.error.main}` : 'none'
+                                                }}>
+                                                    {request.user?.name?.charAt(0) || 'U'}
+                                                </Avatar>
+                                                <Box>
+                                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{request.user?.name}</Typography>
+                                                    {isOverdue && (
+                                                        <Typography variant="caption" color="error" sx={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                            <Box sx={{
+                                                                width: 6,
+                                                                height: 6,
+                                                                bgcolor: 'error.main',
+                                                                borderRadius: '50%',
+                                                                animation: `${pulseEffect} 1.5s infinite ease-in-out`
+                                                            }} />
+                                                            <FormattedMessage id="monitoring.leave.overdue" />
+                                                        </Typography>
+                                                    )}
+                                                </Box>
+                                            </Stack>
+                                        </TableCell>
+                                        <TableCell>
+                                            <Chip
+                                                label={request.type === 'forgot' ? intl.formatMessage({ id: 'dashboard.leave.type.forgot' }) : request.type}
+                                                size="small"
+                                                color={request.type === 'sick' ? 'error' : request.type === 'forgot' ? 'primary' : 'info'}
+                                                variant="outlined"
+                                                sx={{ textTransform: 'capitalize', height: 20, fontSize: '0.65rem' }}
+                                            />
+                                        </TableCell>
+                                        <TableCell>
+                                            <Stack>
+                                                <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                                                    {formatDate(request.start_date)} - {formatDate(request.end_date)}
+                                                </Typography>
+                                                <Typography variant="caption" color="textSecondary" sx={{ fontSize: '0.65rem' }}>
+                                                    <FormattedMessage id="monitoring.leave.waiting_time" />: {daysPending > 0 ? `${daysPending} ${intl.formatMessage({ id: 'monitoring.leave.days' })}` : `${hoursPending} ${intl.formatMessage({ id: 'monitoring.leave.hours' })}`}
+                                                </Typography>
+                                            </Stack>
+                                        </TableCell>
+                                        <TableCell align="center">
+                                            <IconButton
+                                                size="small"
+                                                color={isOverdue ? "error" : "primary"}
+                                                onClick={() => {
+                                                    setSelectedRequest(request);
+                                                    setDetailDialogOpen(true);
+                                                }}
+                                                sx={{
+                                                    bgcolor: isOverdue ? alpha(theme.palette.error.main, 0.1) : 'transparent',
+                                                    '&:hover': { bgcolor: isOverdue ? alpha(theme.palette.error.main, 0.2) : alpha(theme.palette.primary.main, 0.1) }
+                                                }}
+                                            >
+                                                <Eye size={16} />
+                                            </IconButton>
+                                        </TableCell>
+                                    </TableRow>
+                                );
+                            })
                         )}
                     </TableBody>
                 </Table>

@@ -3,12 +3,16 @@
 import React, { useState } from 'react';
 
 // MATERIAL - UI
+// MATERIAL - UI
 import {
     Box,
-    useMediaQuery
+    useMediaQuery,
+    Stack,
+    IconButton,
+    Typography
 } from '@mui/material';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
-import { useTheme } from '@mui/material/styles';
+import { useTheme, alpha } from '@mui/material/styles';
 import { useQuery } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
 import jsPDF from 'jspdf';
@@ -16,8 +20,11 @@ import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { Document, Packer, Paragraph, Table as DocxTable, TableCell as DocxTableCell, TableRow as DocxTableRow, WidthType, AlignmentType, TextRun } from 'docx';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ArrowLeft2, ArrowRight2 } from 'iconsax-react';
 
 // PROJECT IMPORTS
+import MainCard from 'components/MainCard';
 import { getAttendances } from 'utils/api/attendances';
 import { getUnits } from 'utils/api/units';
 import { formatDate, formatTime } from 'utils/format';
@@ -41,6 +48,10 @@ const AttendanceReportView = () => {
     const [endDate, setEndDate] = useState<string>(format(endOfMonth(new Date()), 'yyyy-MM-dd'));
     const [unitFilter, setUnitFilter] = useState('all');
     const [statusFilter, setStatusFilter] = useState<string | null>(null);
+
+    // Pagination State
+    const [page, setPage] = useState(0);
+    const pageSize = 5;
 
     // Fetch units for dropdown
     const { data: unitsData } = useQuery({
@@ -79,6 +90,23 @@ const AttendanceReportView = () => {
         if (statusFilter === 'excused') return attendances.filter((a: any) => a.status === 'permit' || a.status === 'sick');
         return attendances.filter((a: any) => a.status === statusFilter);
     }, [attendances, statusFilter]);
+
+    // Pagination Logic
+    const totalPages = Math.ceil(filteredAttendances.length / pageSize);
+    const paginatedAttendances = filteredAttendances.slice(page * pageSize, (page + 1) * pageSize);
+
+    // Reset page when filters change
+    React.useEffect(() => {
+        setPage(0);
+    }, [startDate, endDate, unitFilter, statusFilter]);
+
+    const handleNextPage = () => {
+        if (page < totalPages - 1) setPage(page + 1);
+    };
+
+    const handlePrevPage = () => {
+        if (page > 0) setPage(page - 1);
+    };
 
     // Export to PDF with Simple & Professional Design
     const handleExportPDF = async () => {
@@ -465,10 +493,67 @@ const AttendanceReportView = () => {
                     setStatusFilter={setStatusFilter}
                 />
 
-                <AttendanceReportTable
-                    filteredAttendances={filteredAttendances}
-                    isLoading={isLoading}
-                />
+                <MainCard
+                    border={false}
+                    shadow={theme.customShadows.z1}
+                    title={
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: 28, color: theme.palette.primary.main }}>table_chart</span>
+                            <Typography variant="h5">Attendance Summary</Typography>
+                        </Box>
+                    }
+                    secondary={
+                        totalPages > 1 && (
+                            <Stack direction="row" spacing={1.5} alignItems="center">
+                                <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', bgcolor: alpha(theme.palette.primary.main, 0.05), px: 1.5, py: 0.5, borderRadius: 1 }}>
+                                    {page * pageSize + 1} - {Math.min((page + 1) * pageSize, filteredAttendances.length)} of {filteredAttendances.length}
+                                </Typography>
+                                <Stack direction="row" spacing={0.5}>
+                                    <IconButton
+                                        size="small"
+                                        onClick={handlePrevPage}
+                                        disabled={page === 0}
+                                        sx={{
+                                            bgcolor: page === 0 ? 'transparent' : alpha(theme.palette.primary.main, 0.1),
+                                            color: theme.palette.primary.main,
+                                            '&.Mui-disabled': { opacity: 0.3 }
+                                        }}
+                                    >
+                                        <ArrowLeft2 size={16} variant="Bold" />
+                                    </IconButton>
+                                    <IconButton
+                                        size="small"
+                                        onClick={handleNextPage}
+                                        disabled={page >= totalPages - 1}
+                                        sx={{
+                                            bgcolor: page >= totalPages - 1 ? 'transparent' : alpha(theme.palette.primary.main, 0.1),
+                                            color: theme.palette.primary.main,
+                                            '&.Mui-disabled': { opacity: 0.3 }
+                                        }}
+                                    >
+                                        <ArrowRight2 size={16} variant="Bold" />
+                                    </IconButton>
+                                </Stack>
+                            </Stack>
+                        )
+                    }
+                >
+                    <AnimatePresence mode="wait">
+                        <motion.div
+                            key={`${startDate}-${endDate}-${unitFilter}-${statusFilter}-${page}`}
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            transition={{ duration: 0.25, ease: 'easeInOut' }}
+                        >
+                            <AttendanceReportTable
+                                filteredAttendances={paginatedAttendances}
+                                isLoading={isLoading}
+                                startNumber={page * pageSize + 1}
+                            />
+                        </motion.div>
+                    </AnimatePresence>
+                </MainCard>
             </Box>
         </Box>
     );

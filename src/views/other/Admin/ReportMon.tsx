@@ -1,9 +1,9 @@
 'use client';
+
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 // MATERIAL - UI
-import Typography from '@mui/material/Typography';
 import {
   CircularProgress,
   Alert,
@@ -31,7 +31,9 @@ import {
   DialogActions,
   Button,
   Divider,
-  InputAdornment
+  InputAdornment,
+  Typography,
+  TextField
 } from '@mui/material';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -40,6 +42,7 @@ import { format, parseISO } from 'date-fns';
 
 // PROJECT IMPORTS
 import MainCard from 'components/MainCard';
+import ExportMonitoringDialog from 'components/ExportMonitoringDialog';
 import { useTheme, alpha } from '@mui/material/styles';
 import { getAttendances } from 'utils/api/attendances';
 import { getUnits } from 'utils/api/units';
@@ -48,10 +51,11 @@ import { AttendanceWithRelations } from 'types/api';
 
 // ICONS
 import {
+  CalendarSearch,
+  Filter,
   InfoCircle,
   Eye,
-  CalendarSearch,
-  Filter
+  ExportCurve
 } from 'iconsax-react';
 
 // ==============================|| REPORT MONITORING PAGE ||============================== //
@@ -63,6 +67,10 @@ const ReportMonitoringView = () => {
   const [unitFilter, setUnitFilter] = useState('all');
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [selectedAttendance, setSelectedAttendance] = useState<any>(null);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('detailed');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   // Get date range for last 7 days
   const today = new Date();
@@ -72,6 +80,11 @@ const ReportMonitoringView = () => {
   const dateFrom = sevenDaysAgo.toISOString().split('T')[0];
   const dateTo = today.toISOString().split('T')[0];
 
+  // Reset to page 1 when filters change
+  React.useEffect(() => {
+    setPage(1);
+  }, [dateFilter, roleFilter, unitFilter, pageSize]);
+
   // Fetch units for dropdown
   const { data: unitsData } = useQuery({
     queryKey: ['units', 'all-for-selector'],
@@ -80,12 +93,13 @@ const ReportMonitoringView = () => {
 
   // Fetch attendances
   const { data: attendancesData, isLoading, error } = useQuery({
-    queryKey: ['attendances', dateFrom, dateTo, roleFilter, dateFilter, unitFilter],
+    queryKey: ['attendances', dateFrom, dateTo, roleFilter, dateFilter, unitFilter, page, pageSize],
     queryFn: () => getAttendances({
       dateFrom: dateFilter || dateFrom,
       dateTo: dateFilter || dateTo,
       unitId: unitFilter !== 'all' ? unitFilter : undefined,
-      pageSize: 50,
+      page,
+      pageSize,
     }),
   });
 
@@ -201,11 +215,63 @@ const ReportMonitoringView = () => {
                 ))}
               </Select>
             </FormControl>
+
+            <Button
+              variant="contained"
+              color="secondary"
+              startIcon={<ExportCurve size={18} />}
+              onClick={() => setExportDialogOpen(true)}
+              sx={{
+                borderRadius: 2.5,
+                fontWeight: 600,
+                boxShadow: `0 4px 12px ${alpha(theme.palette.secondary.main, 0.2)}`
+              }}
+            >
+              Export
+            </Button>
           </Stack>
         </Box>
 
-        {/* Stats Cards */}
-        {/* Stats Cards */}
+        <ExportMonitoringDialog
+          open={exportDialogOpen}
+          onClose={() => setExportDialogOpen(false)}
+          initialUnitId={unitFilter}
+        />
+
+        {/* Report Tabs */}
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+          <Stack direction="row" spacing={1}>
+            <Button
+              onClick={() => setActiveTab('detailed')}
+              sx={{
+                px: 3,
+                py: 1.5,
+                borderRadius: '12px 12px 0 0',
+                fontWeight: 700,
+                color: activeTab === 'detailed' ? theme.palette.primary.main : 'text.secondary',
+                bgcolor: activeTab === 'detailed' ? alpha(theme.palette.primary.main, 0.05) : 'transparent',
+                borderBottom: activeTab === 'detailed' ? `3px solid ${theme.palette.primary.main}` : '3px solid transparent'
+              }}
+            >
+              Detailed Log
+            </Button>
+            <Button
+              onClick={() => setActiveTab('summary')}
+              sx={{
+                px: 3,
+                py: 1.5,
+                borderRadius: '12px 12px 0 0',
+                fontWeight: 700,
+                color: activeTab === 'summary' ? theme.palette.primary.main : 'text.secondary',
+                bgcolor: activeTab === 'summary' ? alpha(theme.palette.primary.main, 0.05) : 'transparent',
+                borderBottom: activeTab === 'summary' ? `3px solid ${theme.palette.primary.main}` : '3px solid transparent'
+              }}
+            >
+              Summary View (%)
+            </Button>
+          </Stack>
+        </Box>
+
         {/* Stats Cards */}
         <Grid container spacing={3} sx={{ mb: 3 }}>
           <Grid item xs={12} sm={6} md={3}>
@@ -334,16 +400,13 @@ const ReportMonitoringView = () => {
             </Alert>
           )}
 
-          <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 2 }}>
-            {isLoading ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 300 }}>
-                <CircularProgress size={30} />
-              </Box>
-            ) : (
-              <Table sx={{ minWidth: 700 }}>
+          {activeTab === 'detailed' ? (
+            <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 3 }}>
+              <Table sx={{ minWidth: 800 }}>
                 <TableHead sx={{ bgcolor: theme.palette.grey[50] }}>
                   <TableRow>
                     <TableCell sx={{ fontWeight: 600 }}>Participant</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Institution</TableCell>
                     <TableCell sx={{ fontWeight: 600 }}>Unit</TableCell>
                     <TableCell sx={{ fontWeight: 600 }}>Date</TableCell>
                     <TableCell sx={{ fontWeight: 600 }}>Check In</TableCell>
@@ -353,7 +416,19 @@ const ReportMonitoringView = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {attendancesData?.data && attendancesData.data.length > 0 ? (
+                  {isLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={8} align="center" sx={{ py: 3 }}>
+                        <CircularProgress size={24} />
+                      </TableCell>
+                    </TableRow>
+                  ) : !attendancesData?.data || attendancesData.data.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} align="center" sx={{ py: 3 }}>
+                        No records found
+                      </TableCell>
+                    </TableRow>
+                  ) : (
                     attendancesData.data.map((attendance: AttendanceWithRelations) => (
                       <TableRow key={attendance.id} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
                         <TableCell>
@@ -373,6 +448,9 @@ const ReportMonitoringView = () => {
                               <Typography variant="caption" color="textSecondary">{attendance.user?.email || '-'}</Typography>
                             </Box>
                           </Stack>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" sx={{ fontWeight: 500 }}>{attendance.user?.institution_name || '-'}</Typography>
                         </TableCell>
                         <TableCell>
                           <Typography variant="body2">{attendance.user?.unit?.name || '-'}</Typography>
@@ -436,17 +514,87 @@ const ReportMonitoringView = () => {
                         </TableCell>
                       </TableRow>
                     ))
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={7} align="center" sx={{ py: 8 }}>
-                        <Typography variant="body2" color="textSecondary">No attendance records found</Typography>
-                      </TableCell>
-                    </TableRow>
                   )}
                 </TableBody>
               </Table>
-            )}
-          </TableContainer>
+            </TableContainer>
+          ) : (
+            <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 3 }}>
+              <Table>
+                <TableHead sx={{ bgcolor: theme.palette.grey[50] }}>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 600 }}>Participant</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Institution</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 600 }}>Present</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 600 }}>Attendance %</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {/* Mock Summary Data if real API summary not available */}
+                  {(attendancesData?.summary || []).map((row: any) => (
+                    <TableRow key={row.user.id}>
+                      <TableCell sx={{ fontWeight: 600 }}>{row.user.name}</TableCell>
+                      <TableCell>{row.user.institution_name}</TableCell>
+                      <TableCell align="center">{row.stats.present} / {row.stats.total_days}</TableCell>
+                      <TableCell align="center" sx={{ color: 'primary.main', fontWeight: 700 }}>
+                        {((row.stats.present / (row.stats.total_days || 1)) * 100).toFixed(1)}%
+                      </TableCell>
+                      <TableCell>
+                        <Chip label={row.insight} size="small" color="primary" sx={{ borderRadius: 1.5 }} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+
+          {/* Pagination */}
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', mt: 2, px: 2, pb: 2 }}>
+            <Typography variant="body2" sx={{ mr: 1, color: 'text.secondary', fontWeight: 500 }}>Rows per page:</Typography>
+            <TextField
+              select
+              size="small"
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+              sx={{
+                width: 80,
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 2,
+                  bgcolor: alpha(theme.palette.primary.main, 0.05)
+                }
+              }}
+            >
+              <MenuItem value={5}>5</MenuItem>
+              <MenuItem value={10}>10</MenuItem>
+              <MenuItem value={25}>25</MenuItem>
+              <MenuItem value={50}>50</MenuItem>
+            </TextField>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 3 }}>
+              <Button
+                size="small"
+                variant="outlined"
+                disabled={page === 1}
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                sx={{ minWidth: 40, borderRadius: 2 }}
+              >
+                ←
+              </Button>
+              <Typography variant="body2" sx={{ fontWeight: 600, minWidth: 40, textAlign: 'center' }}>
+                {page} of {attendancesData?.totalPages || 1}
+              </Typography>
+              <Button
+                size="small"
+                variant="outlined"
+                disabled={!attendancesData || page >= (attendancesData.totalPages || 1)}
+                onClick={() => setPage(p => p + 1)}
+                sx={{ minWidth: 40, borderRadius: 2 }}
+              >
+                →
+              </Button>
+            </Box>
+          </Box>
         </MainCard>
 
         {/* Detail Dialog */}

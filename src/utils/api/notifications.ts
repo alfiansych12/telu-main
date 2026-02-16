@@ -4,6 +4,7 @@ import prisma from 'lib/prisma';
 import { getserverAuthSession } from 'utils/authOptions';
 import { revalidatePath } from 'next/cache';
 import { sendEmailNotification } from './email';
+import { sendTelegramNotification } from './telegram';
 
 export type NotificationType = 'leave' | 'attendance' | 'assessment' | 'system' | 'monitoring';
 
@@ -34,11 +35,25 @@ export async function createNotification(params: CreateNotificationParams) {
         // In a real app, you might trigger an email here too
         const user = await prisma.user.findUnique({
             where: { id: params.userId },
-            select: { email: true }
+            select: { email: true, personal_email: true, telegram_username: true }
         });
 
-        if (user?.email) {
-            await sendEmailNotification(user.email, params.title, params.message);
+        if (user) {
+            // 1. Email Notification
+            const targetEmail = user.personal_email || user.email;
+            if (targetEmail) {
+                await sendEmailNotification(targetEmail, params.title, params.message);
+            }
+
+            // 2. Telegram Notification
+            if (user.telegram_username) {
+                await sendTelegramNotification({
+                    recipientId: user.telegram_username,
+                    title: params.title,
+                    message: `<b>${params.title}</b>\n\n${params.message}${params.link ? `\n\n<a href="${process.env.NEXTAUTH_URL}${params.link}">Buka Aplikasi</a>` : ''}`,
+                    parseMode: 'HTML'
+                });
+            }
         }
 
         return notification;

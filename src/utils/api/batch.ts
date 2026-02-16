@@ -15,15 +15,21 @@ export async function getParticipantDashboardData(userId: string, today: string)
     if (!session) throw new Error('Unauthorized');
 
     const { getNotifications } = require('./notifications');
+    const { getLeaveRequests } = require('./leaves');
+
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
 
     // Run all fetches in parallel on the server
-    const [userProfile, locationSettings, todayRequests, attendanceData, certEligibility, notifications] = await Promise.all([
+    const [userProfile, locationSettings, todayRequests, attendanceData, certEligibility, notifications, pendingLeaves] = await Promise.all([
         getUserById(userId),
         getCheckInLocation(),
         getMonitoringRequests({ userId: userId, date: today }),
-        getAttendances({ userId: userId, pageSize: 30 }),
+        getAttendances({ userId: userId, pageSize: 100, dateFrom: thirtyDaysAgoStr, dateTo: today }),
         getCertificateEligibility(userId),
-        getNotifications(5) // Get last 5 notifications to check for today's reminder
+        getNotifications(5), // Get last 5 notifications to check for today's reminder
+        getLeaveRequests({ userId: userId, status: 'pending', pageSize: 5 })
     ]);
 
     return {
@@ -32,7 +38,8 @@ export async function getParticipantDashboardData(userId: string, today: string)
         todayRequests,
         attendanceData,
         certEligibility,
-        notifications
+        notifications,
+        pendingLeaves: pendingLeaves?.data || []
     };
 }
 

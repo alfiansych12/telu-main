@@ -41,10 +41,18 @@ import MainCard from 'components/MainCard';
 import { getAttendances } from 'utils/api/attendances';
 import { AttendanceWithRelations } from 'types/api';
 import LeaveRequestList from 'components/LeaveRequestList';
-import { CalendarSearch, Filter, Eye, DocumentDownload } from 'iconsax-react';
-import ReportGenerationDialog from 'components/ReportGenerationDialog';
+import {
+	CalendarSearch,
+	Filter,
+	Eye,
+	ArrowLeft2,
+	ArrowRight2,
+	ExportCurve
+} from 'iconsax-react';
+import ExportMonitoringDialog from 'components/ExportMonitoringDialog';
 import { formatTime, formatDate } from 'utils/format';
 import { useSession } from 'next-auth/react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const statusOptions = ['All', 'present', 'absent', 'late', 'permit'];
 
@@ -74,7 +82,25 @@ const Monitoring = () => {
 		enabled: !!supervisorId
 	});
 
+	const [page, setPage] = useState(0);
+	const pageSize = 5;
+
 	const attendances = Array.isArray(data) ? data : (data?.data || []);
+	const totalPages = Math.ceil(attendances.length / pageSize);
+	const paginatedAttendances = attendances.slice(page * pageSize, (page + 1) * pageSize);
+
+	// Reset page when filters change
+	React.useEffect(() => {
+		setPage(0);
+	}, [date, status]);
+
+	const handleNextPage = () => {
+		if (page < totalPages - 1) setPage(page + 1);
+	};
+
+	const handlePrevPage = () => {
+		if (page > 0) setPage(page - 1);
+	};
 
 	return (
 		<Box sx={{ px: 1 }}>
@@ -155,12 +181,14 @@ const Monitoring = () => {
 					</FormControl>
 					<Button
 						variant="contained"
-						startIcon={<DocumentDownload />}
+						startIcon={<ExportCurve />}
 						onClick={() => setReportDialogOpen(true)}
 						sx={{
 							borderRadius: 2,
 							whiteSpace: 'nowrap',
-							px: 3
+							px: 3,
+							bgcolor: theme.palette.secondary.main,
+							'&:hover': { bgcolor: theme.palette.secondary.dark }
 						}}
 					>
 						Export Report
@@ -176,138 +204,191 @@ const Monitoring = () => {
 			)}
 
 			{/* Attendance Table */}
-			<MainCard border={false} shadow={theme.customShadows.z1}>
-				<Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
-					<span className="material-symbols-outlined" style={{ fontSize: 28, color: theme.palette.primary.main }}>event_note</span>
-					<Typography variant="h5">
-						Attendance for {new Date(date).toLocaleDateString('en-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-					</Typography>
-				</Box>
-
-				<TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 2 }}>
-					{isLoading ? (
-						<Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 300 }}>
-							<CircularProgress size={30} />
-						</Box>
-					) : (
-						<Table sx={{ minWidth: 700 }}>
-							<TableHead sx={{ bgcolor: theme.palette.grey[50] }}>
-								<TableRow>
-									<TableCell sx={{ fontWeight: 600 }}>User Profile</TableCell>
-									<TableCell sx={{ fontWeight: 600 }}>Username / Email</TableCell>
-									<TableCell sx={{ fontWeight: 600 }}>Check-in</TableCell>
-									<TableCell sx={{ fontWeight: 600 }}>Check-out</TableCell>
-									<TableCell sx={{ fontWeight: 600 }}>Activity Plan</TableCell>
-									<TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-									<TableCell align="center" sx={{ fontWeight: 600 }}>Action</TableCell>
-								</TableRow>
-							</TableHead>
-							<TableBody>
-								{attendances.length === 0 ? (
-									<TableRow>
-										<TableCell colSpan={7} align="center" sx={{ py: 8 }}>
-											<Typography variant="body2" color="textSecondary">
-												No attendance records found for this date
-											</Typography>
-										</TableCell>
-									</TableRow>
-								) : (
-									attendances.map((row: AttendanceWithRelations) => {
-										// Parse activity meta to check for photo
-										let hasPhoto = false;
-										try {
-											const meta = JSON.parse(row.activity_description || '{}');
-											hasPhoto = !!meta.photo;
-										} catch (e) { }
-
-										return (
-											<TableRow key={row.id} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
-												<TableCell>
-													<Stack direction="row" spacing={1.5} alignItems="center">
-														<Avatar sx={{
-															width: 36,
-															height: 36,
-															fontSize: '0.85rem',
-															fontWeight: 600,
-															bgcolor: alpha(theme.palette.primary.main, 0.1),
-															color: theme.palette.primary.main,
-															border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`
-														}}>
-															{row.user?.name?.charAt(0).toUpperCase() || 'U'}
-														</Avatar>
-														<Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{row.user?.name || 'N/A'}</Typography>
-													</Stack>
-												</TableCell>
-												<TableCell>
-													<Typography variant="body2" color="textSecondary" sx={{ fontWeight: 500 }}>{row.user?.email || 'N/A'}</Typography>
-												</TableCell>
-												<TableCell>
-													<Typography variant="body2" sx={{ fontWeight: 600, color: theme.palette.success.main }}>
-														{formatTime(row.check_in_time)}
+			<MainCard
+				border={false}
+				shadow={theme.customShadows.z1}
+				title={
+					<Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+						<span className="material-symbols-outlined" style={{ fontSize: 28, color: theme.palette.primary.main }}>event_note</span>
+						<Typography variant="h5">
+							Attendance for {new Date(date).toLocaleDateString('en-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+						</Typography>
+					</Box>
+				}
+				secondary={
+					totalPages > 1 && (
+						<Stack direction="row" spacing={1.5} alignItems="center">
+							<Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', bgcolor: alpha(theme.palette.primary.main, 0.05), px: 1.5, py: 0.5, borderRadius: 1 }}>
+								{page * pageSize + 1} - {Math.min((page + 1) * pageSize, attendances.length)} of {attendances.length}
+							</Typography>
+							<Stack direction="row" spacing={0.5}>
+								<IconButton
+									size="small"
+									onClick={handlePrevPage}
+									disabled={page === 0}
+									sx={{
+										bgcolor: page === 0 ? 'transparent' : alpha(theme.palette.primary.main, 0.1),
+										color: theme.palette.primary.main,
+										'&.Mui-disabled': { opacity: 0.3 }
+									}}
+								>
+									<ArrowLeft2 size={16} variant="Bold" />
+								</IconButton>
+								<IconButton
+									size="small"
+									onClick={handleNextPage}
+									disabled={page >= totalPages - 1}
+									sx={{
+										bgcolor: page >= totalPages - 1 ? 'transparent' : alpha(theme.palette.primary.main, 0.1),
+										color: theme.palette.primary.main,
+										'&.Mui-disabled': { opacity: 0.3 }
+									}}
+								>
+									<ArrowRight2 size={16} variant="Bold" />
+								</IconButton>
+							</Stack>
+						</Stack>
+					)
+				}
+			>
+				<AnimatePresence mode="wait">
+					<motion.div
+						key={`${date}-${status}-${page}`}
+						initial={{ opacity: 0, x: 20 }}
+						animate={{ opacity: 1, x: 0 }}
+						exit={{ opacity: 0, x: -20 }}
+						transition={{ duration: 0.25, ease: 'easeInOut' }}
+					>
+						<TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 2 }}>
+							{isLoading ? (
+								<Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 300 }}>
+									<CircularProgress size={30} />
+								</Box>
+							) : (
+								<Table sx={{ minWidth: 700 }}>
+									<TableHead sx={{ bgcolor: theme.palette.grey[50] }}>
+										<TableRow>
+											<TableCell sx={{ fontWeight: 600 }}>User Profile</TableCell>
+											<TableCell sx={{ fontWeight: 600 }}>Institution</TableCell>
+											<TableCell sx={{ fontWeight: 600 }}>Username / Email</TableCell>
+											<TableCell sx={{ fontWeight: 600 }}>Check-in</TableCell>
+											<TableCell sx={{ fontWeight: 600 }}>Check-out</TableCell>
+											<TableCell sx={{ fontWeight: 600 }}>Activity Plan</TableCell>
+											<TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+											<TableCell align="center" sx={{ fontWeight: 600 }}>Action</TableCell>
+										</TableRow>
+									</TableHead>
+									<TableBody>
+										{paginatedAttendances.length === 0 ? (
+											<TableRow>
+												<TableCell colSpan={7} align="center" sx={{ py: 8 }}>
+													<Typography variant="body2" color="textSecondary">
+														No attendance records found for this date
 													</Typography>
-												</TableCell>
-												<TableCell>
-													<Stack direction="row" spacing={1} alignItems="center">
-														<Typography variant="body2" sx={{ fontWeight: 600, color: row.check_out_time ? theme.palette.error.main : 'text.secondary' }}>
-															{formatTime(row.check_out_time)}
-														</Typography>
-														{hasPhoto && (
-															<Box sx={{ color: theme.palette.primary.main, display: 'flex' }}>
-																<span className="material-symbols-outlined" style={{ fontSize: 18 }}>photo_camera</span>
-															</Box>
-														)}
-													</Stack>
-												</TableCell>
-												<TableCell>
-													<Typography variant="body2" sx={{ maxWidth: 200, whiteSpace: 'normal', lineClamp: 1, display: '-webkit-box', overflow: 'hidden', WebkitBoxOrient: 'vertical' }}>
-														{(() => {
-															try {
-																const activity = JSON.parse(row.activity_description || '{}');
-																return activity.plan || (row.activity_description && !row.activity_description.startsWith('{') ? row.activity_description : '-');
-															} catch (e) {
-																return row.activity_description || '-';
-															}
-														})()}
-													</Typography>
-												</TableCell>
-												<TableCell>
-													<Chip
-														label={row.status}
-														color={row.status === 'present' ? 'success' : row.status === 'late' ? 'warning' : 'error'}
-														variant="filled"
-														size="small"
-														sx={{
-															px: 1,
-															height: 24,
-															fontSize: '0.7rem',
-															fontWeight: 700,
-															textTransform: 'uppercase',
-															borderRadius: 1
-														}}
-													/>
-												</TableCell>
-												<TableCell align="center">
-													<Tooltip title="View Detailed Record">
-														<IconButton
-															size="small"
-															sx={{ color: theme.palette.primary.main, bgcolor: alpha(theme.palette.primary.main, 0.05) }}
-															onClick={() => {
-																setSelectedAttendance(row);
-																setDetailDialogOpen(true);
-															}}
-														>
-															<Eye size={18} />
-														</IconButton>
-													</Tooltip>
 												</TableCell>
 											</TableRow>
-										);
-									})
-								)}
-							</TableBody>
-						</Table>
-					)}
-				</TableContainer>
+										) : (
+											paginatedAttendances.map((row: any) => {
+												// Parse activity meta to check for photo
+												let hasPhoto = false;
+												try {
+													const meta = JSON.parse(row.activity_description || '{}');
+													hasPhoto = !!meta.photo;
+												} catch (e) { }
+
+												return (
+													<TableRow key={row.id} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+														<TableCell>
+															<Stack direction="row" spacing={1.5} alignItems="center">
+																<Avatar sx={{
+																	width: 36,
+																	height: 36,
+																	fontSize: '0.85rem',
+																	fontWeight: 600,
+																	bgcolor: alpha(theme.palette.primary.main, 0.1),
+																	color: theme.palette.primary.main,
+																	border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`
+																}}>
+																	{row.user?.name?.charAt(0).toUpperCase() || 'U'}
+																</Avatar>
+																<Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{row.user?.name || 'N/A'}</Typography>
+															</Stack>
+														</TableCell>
+														<TableCell>
+															<Typography variant="body2" sx={{ fontWeight: 500 }}>{row.user?.institution_name || '-'}</Typography>
+														</TableCell>
+														<TableCell>
+															<Typography variant="body2" color="textSecondary" sx={{ fontWeight: 500 }}>{row.user?.email || 'N/A'}</Typography>
+														</TableCell>
+														<TableCell>
+															<Typography variant="body2" sx={{ fontWeight: 600, color: theme.palette.success.main }}>
+																{formatTime(row.check_in_time)}
+															</Typography>
+														</TableCell>
+														<TableCell>
+															<Stack direction="row" spacing={1} alignItems="center">
+																<Typography variant="body2" sx={{ fontWeight: 600, color: row.check_out_time ? theme.palette.error.main : 'text.secondary' }}>
+																	{formatTime(row.check_out_time)}
+																</Typography>
+																{hasPhoto && (
+																	<Box sx={{ color: theme.palette.primary.main, display: 'flex' }}>
+																		<span className="material-symbols-outlined" style={{ fontSize: 18 }}>photo_camera</span>
+																	</Box>
+																)}
+															</Stack>
+														</TableCell>
+														<TableCell>
+															<Typography variant="body2" sx={{ maxWidth: 200, whiteSpace: 'normal', lineClamp: 1, display: '-webkit-box', overflow: 'hidden', WebkitBoxOrient: 'vertical' }}>
+																{(() => {
+																	try {
+																		const activity = JSON.parse(row.activity_description || '{}');
+																		return activity.plan || (row.activity_description && !row.activity_description.startsWith('{') ? row.activity_description : '-');
+																	} catch (e) {
+																		return row.activity_description || '-';
+																	}
+																})()}
+															</Typography>
+														</TableCell>
+														<TableCell>
+															<Chip
+																label={row.status}
+																color={row.status === 'present' ? 'success' : row.status === 'late' ? 'warning' : 'error'}
+																variant="filled"
+																size="small"
+																sx={{
+																	px: 1,
+																	height: 24,
+																	fontSize: '0.7rem',
+																	fontWeight: 700,
+																	textTransform: 'uppercase',
+																	borderRadius: 1
+																}}
+															/>
+														</TableCell>
+														<TableCell align="center">
+															<Tooltip title="View Detailed Record">
+																<IconButton
+																	size="small"
+																	sx={{ color: theme.palette.primary.main, bgcolor: alpha(theme.palette.primary.main, 0.05) }}
+																	onClick={() => {
+																		setSelectedAttendance(row);
+																		setDetailDialogOpen(true);
+																	}}
+																>
+																	<Eye size={18} />
+																</IconButton>
+															</Tooltip>
+														</TableCell>
+													</TableRow>
+												);
+											})
+										)}
+									</TableBody>
+								</Table>
+							)}
+						</TableContainer>
+					</motion.div>
+				</AnimatePresence>
 			</MainCard>
 
 			<Grid container spacing={3} sx={{ mt: 3 }}>
@@ -493,7 +574,7 @@ const Monitoring = () => {
 				</DialogActions>
 			</Dialog>
 
-			<ReportGenerationDialog
+			<ExportMonitoringDialog
 				open={reportDialogOpen}
 				onClose={() => setReportDialogOpen(false)}
 				supervisorId={supervisorId}

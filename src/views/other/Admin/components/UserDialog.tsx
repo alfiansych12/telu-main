@@ -53,38 +53,72 @@ const UserDialog = ({
     const validationSchema = Yup.object().shape({
         name: Yup.string().max(255).required('Full Name is required'),
         email: Yup.string().max(255).required('Email or Username is required'),
-        password: Yup.string().when('mode', {
-            is: 'create',
+        telegram_username: Yup.string().nullable(),
+        password: Yup.string().when(['mode', 'role'], {
+            is: (mode: string, role: string) => mode === 'create' && role !== 'admin',
             then: (schema) => schema.min(6, 'Password must be at least 6 characters').required('Password is required'),
             otherwise: (schema) => schema.min(6, 'Password must be at least 6 characters')
         }),
+        id_number: Yup.string().nullable(),
         role: Yup.string().required('Role is required'),
         unit_id: Yup.string().nullable(),
         status: Yup.string().required('Status is required'),
         internship_start: Yup.date().nullable(),
-        internship_end: Yup.date().nullable()
+        internship_end: Yup.date().nullable(),
+        institution_name: Yup.string().nullable(),
+        mode: Yup.string().oneOf(['create', 'edit']).required(),
+        institution_type: Yup.string().oneOf(['UNIVERSITAS', 'SMK', 'SMA', 'LAINNYA']).required('Institution type is required')
     });
 
     const formik = useFormik({
         initialValues: {
             name: user?.name || '',
             email: user?.email || '',
+            telegram_username: user?.telegram_username || '',
             password: '',
             role: user?.role || 'participant',
+            id_number: user?.id_number || '',
             unit_id: user?.unit_id || '',
             supervisor_id: user?.supervisor_id || '',
             status: user?.status || 'active',
             internship_start: user?.internship_start ? new Date(user.internship_start) : null,
             internship_end: user?.internship_end ? new Date(user.internship_end) : null,
+            institution_name: user?.institution_name || '',
+            institution_type: user?.institution_type || 'UNIVERSITAS',
+            duration: '', // Helper field for automatic date calculation
             mode // passing mode to schema validation context
         },
         validationSchema,
         enableReinitialize: true,
         onSubmit: (values, { setSubmitting }) => {
-            onSubmit(values);
+            // Remove helper fields before submit
+            const { duration, mode: _, ...submitValues } = values;
+            onSubmit(submitValues);
             setSubmitting(false);
         }
     });
+
+    // Auto-calculate End Date based on duration and institution type
+    React.useEffect(() => {
+        if (formik.values.duration && formik.values.internship_start) {
+            const start = new Date(formik.values.internship_start);
+            const durationNum = parseInt(formik.values.duration);
+            if (!isNaN(durationNum)) {
+                let monthsToAdd = 0;
+                if (formik.values.institution_type === 'UNIVERSITAS') {
+                    monthsToAdd = durationNum * 6; // 1 Semester = 6 Months
+                } else if (formik.values.institution_type === 'SMK' || formik.values.institution_type === 'SMA') {
+                    monthsToAdd = durationNum; // 1 Month = 1 Month
+                } else {
+                    monthsToAdd = durationNum; // Default to months
+                }
+
+                const end = new Date(start);
+                end.setMonth(start.getMonth() + monthsToAdd);
+                formik.setFieldValue('internship_end', end);
+            }
+        }
+    }, [formik.values.duration, formik.values.internship_start, formik.values.institution_type]);
 
     return (
         <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -120,28 +154,41 @@ const UserDialog = ({
 
                         <TextField
                             fullWidth
-                            name="password"
-                            label="Password"
-                            type={showPassword ? 'text' : 'password'}
-                            placeholder={mode === 'edit' ? 'Leave blank to keep current' : 'Enter password'}
-                            value={formik.values.password}
+                            name="telegram_username"
+                            label="Telegram ID (Chat ID)"
+                            placeholder="e.g. 123456789 (from @userinfobot)"
+                            value={formik.values.telegram_username}
                             onChange={formik.handleChange}
-                            error={formik.touched.password && Boolean(formik.errors.password)}
-                            helperText={formik.touched.password && formik.errors.password as string}
-                            InputProps={{
-                                endAdornment: (
-                                    <InputAdornment position="end">
-                                        <IconButton
-                                            onClick={() => setShowPassword(!showPassword)}
-                                            edge="end"
-                                            size="small"
-                                        >
-                                            {showPassword ? <EyeSlash size={20} /> : <Eye size={20} />}
-                                        </IconButton>
-                                    </InputAdornment>
-                                )
-                            }}
+                            error={formik.touched.telegram_username && Boolean(formik.errors.telegram_username)}
+                            helperText={formik.touched.telegram_username && formik.errors.telegram_username as string}
                         />
+
+                        {formik.values.role !== 'admin' && (
+                            <TextField
+                                fullWidth
+                                name="password"
+                                label="Password"
+                                type={showPassword ? 'text' : 'password'}
+                                placeholder={mode === 'edit' ? 'Leave blank to keep current' : 'Enter password'}
+                                value={formik.values.password}
+                                onChange={formik.handleChange}
+                                error={formik.touched.password && Boolean(formik.errors.password)}
+                                helperText={formik.touched.password && formik.errors.password as string}
+                                InputProps={{
+                                    endAdornment: (
+                                        <InputAdornment position="end">
+                                            <IconButton
+                                                onClick={() => setShowPassword(!showPassword)}
+                                                edge="end"
+                                                size="small"
+                                            >
+                                                {showPassword ? <EyeSlash size={20} /> : <Eye size={20} />}
+                                            </IconButton>
+                                        </InputAdornment>
+                                    )
+                                }}
+                            />
+                        )}
 
                         <TextField
                             fullWidth
@@ -191,6 +238,18 @@ const UserDialog = ({
                             </MenuItem>
                         </TextField>
 
+                        {(formik.values.role === 'supervisor' || formik.values.role === 'admin') && (
+                            <TextField
+                                fullWidth
+                                name="id_number"
+                                label="NIP / NIK (Supervisor)"
+                                value={formik.values.id_number}
+                                onChange={formik.handleChange}
+                                placeholder="Masukkan NIP atau NIK"
+                                helperText="Identitas ini akan dicantumkan sebagai evaluator pada sertifikat."
+                            />
+                        )}
+
                         <TextField
                             fullWidth
                             select
@@ -213,6 +272,29 @@ const UserDialog = ({
                                     <span className="material-symbols-outlined" style={{ fontSize: 20 }}>assignment_ind</span>
                                     Internship Details
                                 </Typography>
+
+                                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                                    <TextField
+                                        fullWidth
+                                        select
+                                        name="institution_type"
+                                        label="Institution Type"
+                                        value={formik.values.institution_type}
+                                        onChange={formik.handleChange}
+                                    >
+                                        <MenuItem value="UNIVERSITAS">University (Semester)</MenuItem>
+                                        <MenuItem value="SMK">SMK (Month)</MenuItem>
+                                        <MenuItem value="SMA">SMA (Month)</MenuItem>
+                                        <MenuItem value="LAINNYA">Other</MenuItem>
+                                    </TextField>
+                                    <TextField
+                                        fullWidth
+                                        name="institution_name"
+                                        label="School / University Name"
+                                        value={formik.values.institution_name}
+                                        onChange={formik.handleChange}
+                                    />
+                                </Stack>
 
                                 <Autocomplete
                                     fullWidth
@@ -246,6 +328,17 @@ const UserDialog = ({
                                             value={formik.values.internship_start}
                                             onChange={(date) => formik.setFieldValue('internship_start', date)}
                                             slotProps={{ textField: { fullWidth: true } }}
+                                        />
+                                        <TextField
+                                            fullWidth
+                                            name="duration"
+                                            label={formik.values.institution_type === 'UNIVERSITAS' ? "Duration (Semesters)" : "Duration (Months)"}
+                                            type="number"
+                                            value={formik.values.duration}
+                                            onChange={formik.handleChange}
+                                            InputProps={{
+                                                endAdornment: <InputAdornment position="end">{formik.values.institution_type === 'UNIVERSITAS' ? 'Sem' : 'Mo'}</InputAdornment>
+                                            }}
                                         />
                                         <DatePicker
                                             label="End Date"

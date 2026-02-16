@@ -38,7 +38,7 @@ const AuthGuard = ({ children }: GuardProps) => {
     const roleConfig: Record<string, { dashboard: string; allowed: string[] }> = {
       admin: {
         dashboard: '/dashboard',
-        allowed: ['/dashboard', '/ManagementData', '/ReportsMonitoring', '/Profileadmin', '/UnitsManagement', '/MapSettings', '/AttendanceReport', '/CertificateScanner']
+        allowed: ['/dashboard', '/ManagementData', '/ReportsMonitoring', '/Profileadmin', '/UnitsManagement', '/MapSettings', '/AttendanceReport', '/CertificateScanner', '/arsip', '/admin']
       },
       supervisor: {
         dashboard: '/dashboardsuper',

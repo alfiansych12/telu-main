@@ -94,10 +94,12 @@ const BulkImportDialog = ({ open, onClose, units, onImport, isLoading }: BulkImp
         wsTemplate.columns = [
             { key: 'no', width: 8 },
             { key: 'nama', width: 35 },
-            { key: 'email', width: 35 }, // Widened for 'Personal Gmail / Email'
+            { key: 'email', width: 35 },
             { key: 'phone', width: 18 },
             { key: 'institusi', width: 25 },
             { key: 'units', width: 25 },
+            { key: 'transcript_external', width: 60 },
+            { key: 'institusi_type', width: 20 },
             { key: 'start_date', width: 18 },
             { key: 'end_date', width: 18 }
         ];
@@ -108,16 +110,16 @@ const BulkImportDialog = ({ open, onClose, units, onImport, isLoading }: BulkImp
         if (logoImageId !== undefined) {
             wsTemplate.addImage(logoImageId, { tl: { col: 0, row: 0 }, ext: { width: 90, height: 60 }, editAs: 'oneCell' });
         }
-        wsTemplate.mergeCells('B1:H1');
+        wsTemplate.mergeCells('B1:J1');
         wsTemplate.getCell('B1').value = 'TELKOM UNIVERSITY';
         wsTemplate.getCell('B1').font = { bold: true, size: 22, color: { argb: 'FFE31E24' }, name: 'Arial' };
-        wsTemplate.mergeCells('B2:H2');
+        wsTemplate.mergeCells('B2:J2');
         wsTemplate.getCell('B2').value = '📍 Jl. Telekomunikasi No. 1, Terusan Buah Batu, Bandung 40257';
-        wsTemplate.mergeCells('B3:H3');
+        wsTemplate.mergeCells('B3:J3');
         wsTemplate.getCell('B3').value = '📞 (022) 7564108 | ✉️ internship@telkomuniversity.ac.id';
 
         // 2. Banner
-        wsTemplate.mergeCells('A4:H4');
+        wsTemplate.mergeCells('A4:J4');
         wsTemplate.getRow(4).height = 35;
         const bannerCell = wsTemplate.getCell('A4');
         bannerCell.value = 'INTERNSHIP PARTICIPANT DATA IMPORT TEMPLATE';
@@ -126,7 +128,7 @@ const BulkImportDialog = ({ open, onClose, units, onImport, isLoading }: BulkImp
         bannerCell.alignment = { horizontal: 'center', vertical: 'middle' };
 
         // 3. Info Bar
-        wsTemplate.mergeCells('A5:H5');
+        wsTemplate.mergeCells('A5:J5');
         wsTemplate.getRow(5).height = 30;
         const today = new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
         const infoBar = wsTemplate.getCell('A5');
@@ -136,10 +138,10 @@ const BulkImportDialog = ({ open, onClose, units, onImport, isLoading }: BulkImp
         infoBar.alignment = { horizontal: 'center', vertical: 'middle' };
 
         // 4. Instructions
-        wsTemplate.mergeCells('A6:H6');
+        wsTemplate.mergeCells('A6:J6');
         wsTemplate.getRow(6).height = 30;
         const hintBar = wsTemplate.getCell('A6');
-        hintBar.value = '⚠️ INSTRUCTIONS: Enter dates in DD/MM/YYYY format. Do not change column headers.';
+        hintBar.value = '⚠️ INSTRUKSI: Isi data Institusi, Type, Start/End & Kriteria cukup di baris PERTAMA saja untuk grup yang sama (Auto-fill).';
         hintBar.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF2CC' } };
         hintBar.font = { italic: true, size: 10, color: { argb: 'FF856404' } };
         hintBar.alignment = { horizontal: 'center', vertical: 'middle' };
@@ -147,11 +149,22 @@ const BulkImportDialog = ({ open, onClose, units, onImport, isLoading }: BulkImp
         // 5. Header
         const headerRow = wsTemplate.getRow(7);
         headerRow.height = 35;
-        headerRow.values = ['No.', 'Full Name', 'Personal Gmail / Email', 'Phone Number', 'Origin Institution', 'Units', 'Internship Start', 'Internship End'];
+        headerRow.values = [
+            'No.',
+            'Full Name',
+            'Personal Gmail / Email',
+            'Phone Number',
+            'Origin Institution',
+            'Units',
+            'Daftar Kriteria Penilaian Eksternal (Text Biasa)',
+            'Institution Type',
+            'Internship Start',
+            'Internship End'
+        ];
         headerRow.eachCell(c => {
             c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE31E24' } };
             c.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
-            c.alignment = { horizontal: 'center', vertical: 'middle' };
+            c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
             c.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
         });
 
@@ -160,22 +173,62 @@ const BulkImportDialog = ({ open, onClose, units, onImport, isLoading }: BulkImp
         selectedUnits.forEach(u => {
             const count = Math.max(0, (u.capacity || 0) - (u.employee_count || 0));
             for (let i = 0; i < count; i++) {
-                const row = wsTemplate.addRow([rowIndex, '', '', '', '', u.name, '22/01/2026', '10/05/2026']);
+                // Fill metadata only in the very first row
+                const isFirstRowOverall = rowIndex === 1;
+                const row = wsTemplate.addRow([
+                    rowIndex,
+                    '',
+                    '',
+                    '',
+                    '',
+                    u.name,
+                    '',
+                    isFirstRowOverall ? 'UNIVERSITAS' : '',
+                    isFirstRowOverall ? '22/01/2026' : '',
+                    isFirstRowOverall ? '10/05/2026' : ''
+                ]);
                 row.height = 28;
                 const isEven = rowIndex % 2 === 0;
                 row.eachCell({ includeEmpty: true }, (cell, col) => {
-                    cell.alignment = { vertical: 'middle', horizontal: col === 1 ? 'center' : 'left', indent: col === 1 ? 0 : 1 };
-                    cell.border = { top: { style: 'thin', color: { argb: 'FFAAAAAA' } }, left: { style: 'thin', color: { argb: 'FFAAAAAA' } }, bottom: { style: 'thin', color: { argb: 'FFAAAAAA' } }, right: { style: 'thin', color: { argb: 'FFAAAAAA' } } };
-                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isEven ? 'FFF2F2F2' : 'FFFFFFFF' } };
-                    cell.font = { size: 10, color: { argb: 'FF333333' } };
-                    if (col === 3) cell.font.color = { argb: 'FF0000FF' };
-                    if (col === 4) cell.numFmt = '@'; // Force text format for phone numbers
-                    if (col === 6) cell.font.bold = true;
+                    const isMetadataCol = col >= 7; // Criteria, Type, Start, End
+                    const isFirstRowOverall = rowIndex === 1;
+
+                    // Standard participant data (Cols 1-6) gets formatting everywhere.
+                    // Metadata (7-10) only gets formatting and borders in the FIRST row.
+                    if (!isMetadataCol || isFirstRowOverall) {
+                        cell.border = {
+                            top: { style: 'thin', color: { argb: 'FFAAAAAA' } },
+                            left: { style: 'thin', color: { argb: 'FFAAAAAA' } },
+                            bottom: { style: 'thin', color: { argb: 'FFAAAAAA' } },
+                            right: { style: 'thin', color: { argb: 'FFAAAAAA' } }
+                        };
+                        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isEven ? 'FFF2F2F2' : 'FFFFFFFF' } };
+                        cell.font = { size: 10, color: { argb: 'FF333333' } };
+
+                        if (col === 3) cell.font.color = { argb: 'FF0000FF' };
+                        if (col === 4) cell.numFmt = '@';
+                        if (col === 6) cell.font.bold = true;
+
+                        // Special Yellow style for Metadata row 1
+                        if (isMetadataCol && isFirstRowOverall) {
+                            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF5E7' } };
+                            cell.font = { size: 9, italic: true, bold: true, color: { argb: 'FF7D6608' } };
+                        }
+                    }
+
+                    // Add Data Validation for Institution Type (Col 8) even if it's "clean" below
+                    if (col === 8 && isFirstRowOverall) {
+                        cell.dataValidation = {
+                            type: 'list',
+                            allowBlank: true,
+                            formulae: ['"UNIVERSITAS,SMK,SMA,LAINNYA"']
+                        };
+                    }
                 });
                 rowIndex++;
             }
         });
-        wsTemplate.autoFilter = 'A7:H7';
+        wsTemplate.autoFilter = 'A7:J7';
 
         // =========================================================================================
         // SHEET 2: 📊 Info Unit (RESTORED PREMIUM STYLING)
@@ -276,11 +329,12 @@ const BulkImportDialog = ({ open, onClose, units, onImport, isLoading }: BulkImp
         wsUnit.mergeCells(`A${footerRowIdx}:E${footerRowIdx}`);
         wsUnit.getRow(footerRowIdx).height = 35;
         const tipCell = wsUnit.getCell(`A${footerRowIdx}`);
-        tipCell.value = '💡 TIP: Use filters to find units by department. Green = many slots, orange = limited, red = full.';
+        tipCell.value = '💡 TIP: Use Alt+Enter in Column I (Participant Data) to add multiple assessment criteria line by line.';
         tipCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE9F7EF' } };
         tipCell.font = { size: 10, italic: true, color: { argb: 'FF1E8449' } };
         tipCell.alignment = { horizontal: 'center', vertical: 'middle' };
         tipCell.border = { top: { style: 'thin', color: { argb: 'FF1E8449' } } };
+
 
         const buffer = await workbook.xlsx.writeBuffer();
         saveAs(new Blob([buffer]), `Template_Import_${selectedUnits.length}_Units.xlsx`);
@@ -318,28 +372,89 @@ const BulkImportDialog = ({ open, onClose, units, onImport, isLoading }: BulkImp
                 return null;
             };
 
+            const parseTranscriptExternal = (val: any): string[] | null => {
+                const str = getCellValue({ value: val });
+                if (!str) return null;
+
+                // Try parsing as plain text first (newline separated)
+                const lines = str.split('\n')
+                    .map((line: string) => line.trim())
+                    .filter((line: string) => line.length > 0);
+
+                if (lines.length > 0) {
+                    console.log('✅ Successfully parsed transcript_external (plain text):', lines);
+                    return lines;
+                }
+
+                // Fallback: try JSON format for backward compatibility
+                try {
+                    const parsed = JSON.parse(str);
+                    if (Array.isArray(parsed) && parsed.every(item => typeof item === 'string')) {
+                        console.log('✅ Successfully parsed transcript_external (JSON):', parsed);
+                        return parsed;
+                    }
+                    console.warn('⚠️ Invalid transcript_external format (not string array):', parsed);
+                    return null;
+                } catch (e) {
+                    console.warn('⚠️ Failed to parse transcript_external:', str, e);
+                    return null;
+                }
+            };
+
+            let lastInstitutionName = '';
+            let lastInstitutionType = '';
+            let lastTranscriptExternal: string[] | null = null;
+            let lastStartDate: string | null = null;
+            let lastEndDate: string | null = null;
+
             ws.eachRow((row, n) => {
                 if (n <= 7) return;
                 const nameText = getCellValue(row.getCell(2));
-                const personalEmailText = getCellValue(row.getCell(3)); // Email Column = Personal Gmail
+                const personalEmailText = getCellValue(row.getCell(3));
+
                 if (nameText && personalEmailText) {
-                    // Generate email Telkom dari nama (lowercase, replace spaces with dots)
                     const telkomEmail = nameText.toLowerCase().replace(/\s+/g, '.') + '@telkomuniversity.ac.id';
 
-                    data.push({
+                    // New Column indexing:
+                    // 1: No, 2: Name, 3: Email, 4: Phone, 5: Inst Name, 6: Units, 
+                    // 7: Transcript External, 8: Inst Type, 9: Start Date, 10: End Date
+
+                    const currentInstName = getCellValue(row.getCell(5));
+                    const currentInstType = getCellValue(row.getCell(8));
+                    const currentTranscript = parseTranscriptExternal(row.getCell(7).value);
+                    const currentStartDate = parseDate(row.getCell(9).value);
+                    const currentEndDate = parseDate(row.getCell(10).value);
+
+                    // Carry-over logic: if current is empty, use the last valid one
+                    if (currentInstName) lastInstitutionName = currentInstName;
+                    if (currentInstType) lastInstitutionType = currentInstType;
+                    if (currentTranscript) lastTranscriptExternal = currentTranscript;
+                    if (currentStartDate) lastStartDate = currentStartDate;
+                    if (currentEndDate) lastEndDate = currentEndDate;
+
+                    const participantData = {
                         name: nameText,
-                        email: telkomEmail, // Email Telkom (auto-generated)
-                        personal_email: personalEmailText, // Email personal dari Excel
+                        email: telkomEmail,
+                        personal_email: personalEmailText,
                         phone: getCellValue(row.getCell(4)),
-                        institution_name: getCellValue(row.getCell(5)), // Origin Institution
-                        unit_id: allUnitsList.find(u => u.name === getCellValue(row.getCell(6)))?.id || null,
-                        internship_start: parseDate(row.getCell(7).value),
-                        internship_end: parseDate(row.getCell(8).value)
-                    });
+                        institution_name: lastInstitutionName || null,
+                        institution_type: lastInstitutionType || null,
+                        unit_id: allUnitsList.find(u => u.name.trim().toLowerCase() === getCellValue(row.getCell(6)).toLowerCase())?.id || null,
+                        internship_start: lastStartDate,
+                        internship_end: lastEndDate,
+                        transcript_external: lastTranscriptExternal
+                    };
+
+                    data.push(participantData);
                 }
             });
             if (data.length === 0) setError('Incorrect format or empty data.');
-            else setPreviewData(data);
+            else {
+                console.log('📊 Total participants parsed:', data.length);
+                const withTranscript = data.filter(p => p.transcript_external && p.transcript_external.length > 0);
+                console.log(`📋 Participants with transcript_external: ${withTranscript.length}`);
+                setPreviewData(data);
+            }
         } catch (err) {
             setError('Failed to read file.');
         }
@@ -351,6 +466,13 @@ const BulkImportDialog = ({ open, onClose, units, onImport, isLoading }: BulkImp
             return;
         }
         try {
+            console.log('🚀 Starting bulk import...');
+            console.log('Preview data count:', previewData.length);
+            const withTranscript = previewData.filter(p => p.transcript_external && p.transcript_external.length > 0);
+            console.log('Participants with transcript_external:', withTranscript.length);
+            if (withTranscript.length > 0) {
+                console.log('Sample transcript data:', withTranscript[0]);
+            }
             await onImport(previewData, selectedUnitIds);
         } catch (err: any) {
             setError('An unexpected error occurred. Please try again.');
@@ -403,7 +525,9 @@ const BulkImportDialog = ({ open, onClose, units, onImport, isLoading }: BulkImp
                                             </Stack>
                                         </Paper>
                                         <Alert severity="info" sx={{ borderRadius: 2 }} icon={<InfoCircle variant="Bold" />}>
-                                            <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', lineHeight: 1.4 }}>Select units, download the template, and fill in the data along with the internship dates.</Typography>
+                                            <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', lineHeight: 1.4 }}>
+                                                Select units and download template. For <b>External Criteria</b>, use <b>Alt+Enter</b> in Excel to add multiple items line by line.
+                                            </Typography>
                                         </Alert>
                                     </Stack>
                                 </Grid>

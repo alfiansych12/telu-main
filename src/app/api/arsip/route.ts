@@ -4,14 +4,17 @@ import { getserverAuthSession } from 'utils/authOptions';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: Request) {
     try {
         const session = await getserverAuthSession();
         if (!session) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const archives = await getInstitutionArchives();
+        const { searchParams } = new URL(request.url);
+        const showDeleted = searchParams.get('deleted') === 'true';
+
+        const archives = await getInstitutionArchives(showDeleted);
         return NextResponse.json(archives);
     } catch (error: any) {
         console.error('[API] GET /api/arsip error:', error);

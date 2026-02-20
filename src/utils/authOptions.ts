@@ -207,7 +207,8 @@ export const authOptions: NextAuthOptions = {
 // ==============================|| AXIOS LOGIN INSTANCE ||============================== //
 
 const axiosLogin = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_NEXT_APP_API_URL_LOGIN || 'https://auth-v2.telkomuniversity.ac.id/stg/api/oauth/'
+  baseURL: process.env.NEXT_PUBLIC_NEXT_APP_API_URL_LOGIN || 'https://auth-v2.telkomuniversity.ac.id/stg/api/oauth/',
+  timeout: 30000 // 30 seconds timeout
 });
 
 export async function authLogin(username: string | undefined, password: string | undefined) {
@@ -217,9 +218,14 @@ export async function authLogin(username: string | undefined, password: string |
       password: password
     });
     return data;
-  } catch (error) {
-    console.error('Login API Error:', error);
-    return error;
+  } catch (error: any) {
+    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+      console.error('Login API Timeout Error:', error);
+      throw new Error('Connecting to SSO server timed out. Please try again.');
+    }
+    console.error('Login API Error:', error.message || error);
+    // Return null instead of error object to indicate failure clearly to authorize()
+    return null;
   }
 }
 
@@ -231,9 +237,13 @@ export async function getProfile(token: string) {
       }
     });
     return data;
-  } catch (error) {
-    console.error('Profile API Error:', error);
-    return error;
+  } catch (error: any) {
+    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+      console.error('Profile API Timeout Error:', error);
+      throw new Error('Connecting to SSO profile server timed out. Please try again.');
+    }
+    console.error('Profile API Error:', error.message || error);
+    return null;
   }
 }
 

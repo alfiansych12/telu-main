@@ -557,3 +557,49 @@ export async function getDepartments() {
         throw error;
     }
 }
+/**
+ * Get active units for public consumption (no session required)
+ * Returns only necessary fields for registration/selection
+ */
+export async function getPublicUnits() {
+    try {
+        const units = await prisma.unit.findMany({
+            where: {
+                status: 'active',
+                deleted_at: null
+            },
+            select: {
+                id: true,
+                name: true,
+                department: true,
+                capacity: true,
+                description: true,
+                _count: {
+                    select: {
+                        users: {
+                            where: {
+                                status: 'active',
+                                role: 'participant'
+                            }
+                        }
+                    }
+                }
+            },
+            orderBy: {
+                name: 'asc'
+            }
+        });
+
+        return units.map((u: any) => ({
+            id: u.id,
+            name: u.name,
+            department: u.department,
+            capacity: u.capacity,
+            description: u.description,
+            employee_count: u._count?.users || 0
+        })) as unknown as UnitWithRelations[];
+    } catch (error) {
+        console.error('Error fetching public units:', error);
+        return [];
+    }
+}

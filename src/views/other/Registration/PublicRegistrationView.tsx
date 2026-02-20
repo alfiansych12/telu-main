@@ -19,8 +19,12 @@ import {
     alpha
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { ArrowLeft, TickCircle, InfoCircle, Briefcase, Calendar, Location } from 'iconsax-react';
+import { ArrowLeft, TickCircle, InfoCircle, Briefcase, Calendar, Location, Flash } from 'iconsax-react';
 import { useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
+import { getPublicUnits } from 'utils/api/units';
+import { bulkImportRegistrations } from 'utils/api/import-registrations';
+import BulkRegistrationImportDialog from '../Admin/Registration/components/BulkRegistrationImportDialog';
 
 interface Field {
     id: string;
@@ -46,9 +50,22 @@ const PublicRegistrationView = ({ slug }: { slug: string }) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [responses, setResponses] = useState<Record<string, any>>({});
+    const [formFiles, setFormFiles] = useState<Record<string, { name: string, url: string, type: string }>>({});
     const [submitting, setSubmitting] = useState(false);
     const [success, setSuccess] = useState(false);
+    const [bulkImportOpen, setBulkImportOpen] = useState(false);
     const [applicationId, setApplicationId] = useState('');
+    const [attachedBulkData, setAttachedBulkData] = useState<any[] | null>(null);
+    const [attachedUnitIds, setAttachedUnitIds] = useState<string[]>([]);
+
+    // Fetch reference data (units) for bulk import (Public version)
+    const { data: publicUnits } = useQuery({
+        queryKey: ['public-units-lookup'],
+        queryFn: () => getPublicUnits(),
+        staleTime: 300000,
+    });
+
+    const allUnitsData = publicUnits || [];
 
     useEffect(() => {
         const fetchForm = async () => {
@@ -84,8 +101,33 @@ const PublicRegistrationView = ({ slug }: { slug: string }) => {
         if (!form) return 0;
         const requiredFields = form.fields.filter(f => f.required);
         if (requiredFields.length === 0) return 100;
-        const filledRequired = requiredFields.filter(f => responses[f.id] && responses[f.id].toString().trim() !== '');
+        const filledRequired = requiredFields.filter(f => {
+            if (f.type === 'file') return !!formFiles[f.id];
+            return responses[f.id] && responses[f.id].toString().trim() !== '';
+        });
         return Math.round((filledRequired.length / requiredFields.length) * 100);
+    };
+
+    const handleFileChange = async (fieldId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        try {
+            const reader = new FileReader();
+            reader.onload = () => {
+                setFormFiles(prev => ({
+                    ...prev,
+                    [fieldId]: {
+                        name: file.name,
+                        url: reader.result as string,
+                        type: file.type
+                    }
+                }));
+            };
+            reader.readAsDataURL(file);
+        } catch (err) {
+            console.error('File read error:', err);
+        }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -96,52 +138,102 @@ const PublicRegistrationView = ({ slug }: { slug: string }) => {
         setError('');
 
         try {
-            const missingFields = form.fields
-                .filter(f => f.required && (!responses[f.id] || responses[f.id].toString().trim() === ''))
-                .map(f => f.label);
+            const isMainFormEmpty = Object.values(responses).every(v => !v || v.toString().trim() === '') && Object.keys(formFiles).length === 0;
+            const hasBulkData = attachedBulkData && attachedBulkData.length > 0;
 
-            if (missingFields.length > 0) {
-                throw new Error(`Please complete the following required fields: ${missingFields.join(', ')}`);
+            if (isMainFormEmpty && !hasBulkData) {
+                throw new Error('Please fill out the form or attach a bulk data file.');
             }
 
-            const instField = form.fields.find(f =>
-                f.label.toLowerCase().includes('institution') ||
-                f.label.toLowerCase().includes('school') ||
-                f.label.toLowerCase().includes('university') ||
-                f.label.toLowerCase().includes('sekolah') ||
-                f.label.toLowerCase().includes('kampus') ||
-                f.label.toLowerCase().includes('asal')
-            );
+            // Only validate main form if it's NOT empty (user intended to fill it) 
+            // OR if there is NO bulk data (meaning main form is the only way)
+            if (!isMainFormEmpty || !hasBulkData) {
+                const missingFields = form.fields
+                    .filter(f => {
+                        if (!f.required) return false;
+                        if (f.type === 'file') return !formFiles[f.id];
+                        return !responses[f.id] || responses[f.id].toString().trim() === '';
+                    })
+                    .map(f => f.label);
 
-            const institution_name = instField ? responses[instField.id] : (Object.values(responses)[0] || 'Unspecified');
-
-            const payload = {
-                form_id: form.id,
-                institution_name: String(institution_name),
-                responses: responses,
-                files: {}
-            };
-
-            const res = await fetch('/api/registration/submit', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
-            const data = await res.json();
-
-            if (data.success) {
-                setSuccess(true);
-                setApplicationId(data.submission.application_id);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            } else {
-                throw new Error(data.error || 'The system was unable to process your application at this time.');
+                if (missingFields.length > 0) {
+                    throw new Error(`Please complete the following required fields: ${missingFields.join(', ')}`);
+                }
             }
+
+            let mainSubmissionId = null;
+
+            if (hasBulkData) {
+                // PRIORITAS: Jika ada data bulk, hanya kirim bulk (Batch Mode)
+                try {
+                    const result = await bulkImportRegistrations(form.id, attachedUnitIds, attachedBulkData!, formFiles);
+                    if (result.success && result.submissions && result.submissions.length > 0) {
+                        mainSubmissionId = `REG-BATCH-${result.submissions[0].id.substring(0, 8).toUpperCase()}`;
+                    }
+                } catch (bulkErr) {
+                    console.error('Failed to send bulk data part:', bulkErr);
+                    throw new Error('Gagal memproses pendaftaran masal.');
+                }
+            } else if (!isMainFormEmpty) {
+                // Hanya kirim individual jika form diisi DAN tidak ada bulk data
+                const instField = form.fields.find(f =>
+                    f.label.toLowerCase().includes('institution') ||
+                    f.label.toLowerCase().includes('school') ||
+                    f.label.toLowerCase().includes('university') ||
+                    f.label.toLowerCase().includes('sekolah') ||
+                    f.label.toLowerCase().includes('kampus') ||
+                    f.label.toLowerCase().includes('asal')
+                );
+
+                let institution_name = 'Unspecified';
+                if (instField) {
+                    institution_name = instField.type === 'file' ? formFiles[instField.id]?.name : responses[instField.id];
+                } else {
+                    institution_name = Object.values(responses)[0] || Object.values(formFiles)[0]?.name || 'Unspecified';
+                }
+
+                // Strip extension if it's a file name
+                if (typeof institution_name === 'string' && institution_name.includes('.')) {
+                    institution_name = institution_name.split('.').slice(0, -1).join('.');
+                }
+
+                const payload = {
+                    form_id: form.id,
+                    institution_name: String(institution_name),
+                    responses: responses,
+                    files: formFiles
+                };
+
+                const res = await fetch('/api/registration/submit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Submission failed');
+                mainSubmissionId = data.submission.application_id;
+            }
+
+            setSuccess(true);
+            if (mainSubmissionId) setApplicationId(mainSubmissionId);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         } catch (err: any) {
-            setError(err.message || 'An unexpected error occurred. Please try again.');
+            setError(err.message);
         } finally {
             setSubmitting(false);
         }
+    };
+
+    const handleBulkImport = async (data: any[], unitIds: string[]) => {
+        // Now it just stores in state, doesn't call API yet
+        setAttachedBulkData(data);
+        setAttachedUnitIds(unitIds);
+        setBulkImportOpen(false);
+        // Scroll to the bottom to see the attachment
+        setTimeout(() => {
+            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        }, 100);
     };
 
     if (loading) {
@@ -309,12 +401,14 @@ const PublicRegistrationView = ({ slug }: { slug: string }) => {
                     {/* Main Form */}
                     <Grid item xs={12} md={8}>
                         <Paper sx={{ p: { xs: 4, md: 6 }, borderRadius: 5, boxShadow: '0 20px 50px rgba(0,0,0,0.04)' }}>
-                            <Typography variant="h4" sx={{ fontWeight: 800, mb: 1, letterSpacing: -1 }}>
-                                Application Form
-                            </Typography>
-                            <Typography color="textSecondary" sx={{ mb: 6 }}>
-                                Provide your professional information below to begin the selection process.
-                            </Typography>
+                            <Box sx={{ mb: 6 }}>
+                                <Typography variant="h4" sx={{ fontWeight: 800, mb: 1, letterSpacing: -1 }}>
+                                    Application Form
+                                </Typography>
+                                <Typography color="textSecondary">
+                                    Provide your professional information below to begin the selection process.
+                                </Typography>
+                            </Box>
 
                             {error && (
                                 <Alert severity="error" variant="filled" sx={{ mb: 4, borderRadius: 2.5 }}>
@@ -327,14 +421,14 @@ const PublicRegistrationView = ({ slug }: { slug: string }) => {
                                     {form?.fields.map((field) => (
                                         <Grid item xs={12} key={field.id}>
                                             <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5, ml: 0.5, display: 'flex', alignItems: 'center' }}>
-                                                {field.label} {field.required && <span style={{ color: theme.palette.error.main, marginLeft: '4px' }}>*</span>}
+                                                {field.label} {(field.required && !attachedBulkData) && <span style={{ color: theme.palette.error.main, marginLeft: '4px' }}>*</span>}
                                             </Typography>
 
                                             {field.type === 'select' ? (
                                                 <TextField
                                                     select
                                                     fullWidth
-                                                    required={field.required}
+                                                    required={field.required && !attachedBulkData}
                                                     value={responses[field.id] || ''}
                                                     onChange={(e) => handleInputChange(field.id, e.target.value)}
                                                     variant="outlined"
@@ -351,18 +445,47 @@ const PublicRegistrationView = ({ slug }: { slug: string }) => {
                                                     fullWidth
                                                     multiline
                                                     rows={4}
-                                                    required={field.required}
+                                                    required={field.required && !attachedBulkData}
                                                     placeholder={field.placeholder}
                                                     value={responses[field.id] || ''}
                                                     onChange={(e) => handleInputChange(field.id, e.target.value)}
                                                     variant="outlined"
                                                     sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3, bgcolor: '#FAFBFC' } }}
                                                 />
+                                            ) : field.type === 'file' ? (
+                                                <Box>
+                                                    <Button
+                                                        variant="outlined"
+                                                        component="label"
+                                                        fullWidth
+                                                        sx={{
+                                                            py: 2,
+                                                            borderRadius: 3,
+                                                            borderStyle: 'dashed',
+                                                            bgcolor: '#FAFBFC',
+                                                            color: formFiles[field.id] ? theme.palette.success.main : 'text.secondary',
+                                                            borderColor: formFiles[field.id] ? theme.palette.success.main : 'divider'
+                                                        }}
+                                                    >
+                                                        {formFiles[field.id] ? `✅ ${formFiles[field.id].name}` : (field.placeholder || 'Choose File / Upload Document')}
+                                                        <input
+                                                            type="file"
+                                                            hidden
+                                                            required={field.required && !formFiles[field.id] && !attachedBulkData}
+                                                            onChange={(e) => handleFileChange(field.id, e)}
+                                                        />
+                                                    </Button>
+                                                    {formFiles[field.id] && (
+                                                        <Typography variant="caption" sx={{ mt: 1, display: 'block', color: 'text.secondary' }}>
+                                                            File selected: {formFiles[field.id].name}
+                                                        </Typography>
+                                                    )}
+                                                </Box>
                                             ) : (
                                                 <TextField
                                                     fullWidth
                                                     type={field.type}
-                                                    required={field.required}
+                                                    required={field.required && !attachedBulkData}
                                                     placeholder={field.placeholder}
                                                     value={responses[field.id] || ''}
                                                     onChange={(e) => handleInputChange(field.id, e.target.value)}
@@ -375,6 +498,46 @@ const PublicRegistrationView = ({ slug }: { slug: string }) => {
                                     ))}
 
                                     <Grid item xs={12} sx={{ mt: 2 }}>
+                                        <Divider sx={{ mb: 4, mt: 1 }}>
+                                            <Typography variant="caption" color="textSecondary" sx={{ fontWeight: 700 }}>ATTACH BULK DATA (OPTIONAL)</Typography>
+                                        </Divider>
+
+                                        {attachedBulkData ? (
+                                            <Paper variant="outlined" sx={{ p: 2, mb: 4, borderRadius: 3, borderColor: theme.palette.success.main, bgcolor: alpha(theme.palette.success.main, 0.02) }}>
+                                                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                                                    <Stack direction="row" spacing={2} alignItems="center">
+                                                        <Box sx={{ p: 1, bgcolor: theme.palette.success.main, borderRadius: 2, color: 'white', display: 'flex' }}>
+                                                            <TickCircle size={24} variant="Bold" />
+                                                        </Box>
+                                                        <Box>
+                                                            <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>Excel Attached</Typography>
+                                                            <Typography variant="caption" color="textSecondary">{attachedBulkData.length} students ready to be registered.</Typography>
+                                                        </Box>
+                                                    </Stack>
+                                                    <Button size="small" color="error" onClick={() => setAttachedBulkData(null)}>Clear</Button>
+                                                </Stack>
+                                            </Paper>
+                                        ) : (
+                                            <Button
+                                                variant="outlined"
+                                                color="primary"
+                                                fullWidth
+                                                startIcon={<Flash size={20} variant="Bold" />}
+                                                sx={{
+                                                    py: 1.8,
+                                                    borderRadius: 3,
+                                                    fontWeight: 800,
+                                                    borderStyle: 'dashed',
+                                                    borderWidth: 2,
+                                                    mb: 4,
+                                                    '&:hover': { borderWidth: 2 }
+                                                }}
+                                                onClick={() => setBulkImportOpen(true)}
+                                            >
+                                                BULK IMPORT (EXCEL)
+                                            </Button>
+                                        )}
+
                                         <Button
                                             type="submit"
                                             variant="contained"
@@ -399,7 +562,8 @@ const PublicRegistrationView = ({ slug }: { slug: string }) => {
                                                 </Stack>
                                             ) : 'SUBMIT MY APPLICATION'}
                                         </Button>
-                                        <Typography variant="caption" sx={{ mt: 2, display: 'block', textAlign: 'center', color: 'text.secondary', fontWeight: 500 }}>
+
+                                        <Typography variant="caption" sx={{ mt: 3, display: 'block', textAlign: 'center', color: 'text.secondary', fontWeight: 500 }}>
                                             By submitting, you agree to our recruitment terms and data privacy policy.
                                         </Typography>
                                     </Grid>
@@ -409,6 +573,16 @@ const PublicRegistrationView = ({ slug }: { slug: string }) => {
                     </Grid>
                 </Grid>
             </Container>
+
+            <BulkRegistrationImportDialog
+                open={bulkImportOpen}
+                onClose={() => setBulkImportOpen(false)}
+                units={allUnitsData}
+                formId={form?.id || ''}
+                formTitle={form?.title || 'Registration'}
+                onImport={handleBulkImport}
+                isLoading={false}
+            />
         </Box>
     );
 };

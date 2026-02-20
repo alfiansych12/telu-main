@@ -39,8 +39,10 @@ import {
     Clock,
     TickCircle,
     Import,
-    Personalcard
+    Personalcard,
+    Trash as TrashIcon
 } from 'iconsax-react';
+import RecycleBinDialog from '../components/RecycleBinDialog';
 
 // Types for Dynamic Form
 type FieldType = 'text' | 'number' | 'date' | 'time' | 'select' | 'checkbox' | 'file' | 'textarea';
@@ -74,6 +76,7 @@ const FormBuilder = () => {
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' | 'warning' | 'info' });
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
     const [formToDelete, setFormToDelete] = useState<any>(null);
+    const [recycleBinOpen, setRecycleBinOpen] = useState(false);
 
     // Fetch existing forms
     const fetchForms = async () => {
@@ -122,7 +125,7 @@ const FormBuilder = () => {
             const data = await res.json();
 
             if (data.success) {
-                setSnackbar({ open: true, message: data.message || 'Form deleted successfully', severity: 'success' });
+                setSnackbar({ open: true, message: data.message || 'Form moved to Recycle Bin', severity: 'success' });
                 fetchForms();
                 setDeleteConfirmOpen(false);
                 setFormToDelete(null);
@@ -434,7 +437,7 @@ const FormBuilder = () => {
                                         <Divider sx={{ mb: 2, borderStyle: 'dashed' }} />
                                         <Stack direction="row" justifyContent="space-between" alignItems="center">
                                             <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>
-                                                {form.fields.length} Fields
+                                                {form.fields?.length || 0} Fields
                                             </Typography>
                                             <Stack direction="row" spacing={1}>
                                                 <Button
@@ -477,9 +480,26 @@ const FormBuilder = () => {
                     </DialogContent>
                     <DialogActions sx={{ p: 2 }}>
                         <Button onClick={() => setDeleteConfirmOpen(false)} color="inherit">Cancel</Button>
-                        <Button onClick={confirmDelete} color="error" variant="contained">Delete Form</Button>
+                        <Button onClick={confirmDelete} color="error" variant="contained">Move to Recycle Bin</Button>
                     </DialogActions>
                 </Dialog>
+
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3 }}>
+                    <Button
+                        variant="outlined"
+                        color="inherit"
+                        startIcon={<TrashIcon size={18} />}
+                        onClick={() => setRecycleBinOpen(true)}
+                        sx={{ borderRadius: 2, fontWeight: 700 }}
+                    >
+                        Recycle Bin
+                    </Button>
+                </Box>
+
+                <RecycleBinDialog
+                    open={recycleBinOpen}
+                    onClose={() => setRecycleBinOpen(false)}
+                />
 
                 <Snackbar
                     open={snackbar.open}

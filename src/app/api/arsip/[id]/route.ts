@@ -33,8 +33,8 @@ export async function DELETE(
         }
 
         const { id } = params;
-        await deleteInstitutionArchive(id);
-        return NextResponse.json({ success: true });
+        await deleteInstitutionArchive(id, (session.user as any).id);
+        return NextResponse.json({ success: true, message: 'Archive moved to Recycle Bin' });
     } catch (error: any) {
         console.error(`[API] DELETE /api/arsip/${params.id} error:`, error);
         return NextResponse.json({ error: error.message }, { status: 500 });

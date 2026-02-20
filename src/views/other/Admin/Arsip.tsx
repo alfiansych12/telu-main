@@ -33,6 +33,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ArsipDialog from './components/ArsipDialog';
 import { openAlert } from 'api/alert';
 import axios from 'utils/axios';
+import RecycleBinDialog from './components/RecycleBinDialog';
 
 const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -60,6 +61,7 @@ const ArsipView = () => {
     const [dialogMode, setDialogMode] = useState<'create' | 'edit'>('create');
     const [selectedItem, setSelectedItem] = useState<ArsipItem | null>(null);
     const [loading, setLoading] = useState(true);
+    const [recycleBinOpen, setRecycleBinOpen] = useState(false);
 
     // Data state
     const [arsipList, setArsipList] = useState<ArsipItem[]>([]);
@@ -104,78 +106,154 @@ const ArsipView = () => {
     };
 
     const handleView = (item: ArsipItem) => {
-        if (item.document_url) {
-            let url = item.document_url;
-
-            // Check if it's metadata JSON (from registration form)
-            try {
-                const metadata = JSON.parse(url);
-                if (metadata.source === 'registration_form') {
-                    // Show metadata dialog instead of opening PDF
-                    openAlert({
-                        variant: 'info',
-                        title: 'Detail Arsip Pendaftaran',
-                        message: `
-                            <div style="text-align: left;">
-                                <p><strong>📋 Sumber:</strong> Formulir Pendaftaran Online</p>
-                                <p><strong>👤 Nama Peserta:</strong> ${metadata.participant_name}</p>
-                                <p><strong>📧 Email:</strong> ${metadata.participant_email}</p>
-                                <p><strong>🆔 NIM/ID:</strong> ${metadata.participant_id_number || '-'}</p>
-                                <p><strong>✅ Disetujui:</strong> ${new Date(metadata.approved_at).toLocaleString('id-ID')}</p>
-                                <p><strong>📝 Catatan:</strong> ${metadata.note}</p>
-                                <hr style="margin: 12px 0; border: none; border-top: 1px solid #eee;" />
-                                <p style="color: #666; font-size: 0.9em;">
-                                    <em>Arsip ini dibuat otomatis saat approval aplikasi pendaftaran. 
-                                    Untuk melihat detail lengkap aplikasi, silakan cek menu "Registration Applications".</em>
-                                </p>
-                            </div>
-                        `
-                    });
-                    return;
-                }
-            } catch (e) {
-                // Not JSON metadata, continue with normal flow
-            }
-
-            // Handle dummy URL
-            if (url.includes('dummy-url.com')) {
-                url = 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf';
-            }
-
-            // Check if it's a base64 PDF
-            if (url.startsWith('data:application/pdf')) {
-                // Open base64 PDF in new tab
-                const newWindow = window.open();
-                if (newWindow) {
-                    newWindow.document.write(`
-                        <html>
-                            <head><title>${item.document_name}</title></head>
-                            <body style="margin:0">
-                                <iframe src="${url}" width="100%" height="100%" style="border:none"></iframe>
-                            </body>
-                        </html>
-                    `);
-                }
-            } else {
-                // Regular URL
-                window.open(url, '_blank');
-            }
-        } else {
+        if (!item.document_url) {
             openAlert({
                 variant: 'error',
                 title: 'View Failed',
                 message: 'URL dokumen tidak ditemukan.'
             });
+            return;
         }
+
+        let url = item.document_url;
+
+        // Helper to open Base64 robustly
+        const openBase64 = (dataUrl: string, title: string) => {
+            if (dataUrl.startsWith('data:application/pdf')) {
+                const newWindow = window.open();
+                if (newWindow) {
+                    newWindow.document.write(`
+                        <html>
+                            <head><title>${title}</title></head>
+                            <body style="margin:0">
+                                <iframe src="${dataUrl}" width="100%" height="100%" style="border:none"></iframe>
+                            </body>
+                        </html>
+                    `);
+                    newWindow.document.close();
+                }
+            } else {
+                window.open(dataUrl, '_blank');
+            }
+        };
+
+        // Check if it's metadata JSON (from registration form)
+        try {
+            const metadata = JSON.parse(url);
+            if (metadata.source === 'registration_form') {
+                const files = metadata.files || {};
+                let fileEntries = Object.entries(files);
+
+                // Fallback: If no files in 'files' object, search in 'responses' for any Base64 data
+                if (fileEntries.length === 0 && metadata.responses) {
+                    Object.entries(metadata.responses).forEach(([key, val]) => {
+                        if (typeof val === 'string' && val.startsWith('data:')) {
+                            files[key] = {
+                                name: `Document_${key}`,
+                                url: val,
+                                type: val.split(';')[0].split(':')[1] || 'application/octet-stream'
+                            };
+                        }
+                    });
+                    fileEntries = Object.entries(files);
+                }
+
+                if (fileEntries.length > 0) {
+                    const [_, firstFile]: [string, any] = fileEntries[0];
+
+                    openAlert({
+                        variant: 'info',
+                        title: 'Preview Dokumen Pendaftaran',
+                        confirmText: 'Buka Penuh',
+                        onConfirm: () => openBase64(firstFile.url, firstFile.name || 'Dokumen Pendaftaran'),
+                        message: `
+                            <div style="width: 100%; height: 500px; background: #f0f0f0; border-radius: 8px; overflow: hidden; border: 1px solid #ddd; position: relative;">
+                                <iframe src="${firstFile.url}" width="100%" height="100%" style="border: none;"></iframe>
+                                <div style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.6); color: #fff; padding: 8px 12px; font-size: 0.8rem; display: flex; justify-content: space-between; align-items: center;">
+                                    <span>📄 ${firstFile.name || 'Dokumen Pendaftaran'}</span>
+                                    <span>${fileEntries.length > 1 ? `+ ${fileEntries.length - 1} file lainnya` : ''}</span>
+                                </div>
+                            </div>
+                            <div style="margin-top: 12px; color: #666; font-size: 0.85rem; text-align: center;">
+                                <p style="margin-bottom: 4px; font-weight: 600;">Institusi: ${item.institution_name}</p>
+                                <p>Identitas dan detail pendaftar sudah tercantum di dalam dokumen tersebut.</p>
+                            </div>
+                        `
+                    });
+                    return;
+                }
+
+                // Special case for Batch
+                if (metadata.note && metadata.note.toLowerCase().includes('batch')) {
+                    openAlert({
+                        variant: 'info',
+                        title: 'Arsip Pendaftaran Masal (Batch)',
+                        message: `
+                            <div style="text-align: center; padding: 20px;">
+                                <div style="font-size: 40px; margin-bottom: 20px;">👥</div>
+                                <p style="font-weight: 700; color: #333;">Data Pendaftaran Masal</p>
+                                <p style="color: #666; font-size: 0.9rem; margin-top: 8px;">
+                                    Arsip ini berisi pendaftaran masal untuk <b>${item.institution_name}</b>. 
+                                    Dokumen fisik (seperti surat pengantar) mungkin tidak diunggah saat pendaftaran masal via Excel.
+                                </p>
+                                <div style="margin-top: 20px; padding: 12px; background: #f9f9f9; border-radius: 8px; font-size: 0.85rem; text-align: left;">
+                                    <b>Detail:</b><br/>
+                                    • Status: Approved<br/>
+                                    • Catatan: ${metadata.note || 'No Additional Notes'}
+                                </div>
+                            </div>
+                        `
+                    });
+                    return;
+                }
+
+                // No files in metadata fallback
+                openAlert({
+                    variant: 'warning',
+                    title: 'Dokumen Tidak Tersedia',
+                    message: `
+                        <div style="text-align: center; padding: 20px;">
+                            <div style="font-size: 40px; margin-bottom: 10px;">📂</div>
+                            <p style="font-weight: 700; color: #333; margin: 0;">Berkas Belum Diunggah</p>
+                            <p style="color: #666; font-size: 0.9rem; margin-top: 8px;">
+                                Tidak ditemukan lampiran dokumen dalam arsip ini. 
+                                Pastikan pendaftar telah mengunggah file yang diperlukan di form pendaftaran.
+                            </p>
+                        </div>
+                    `
+                });
+                return;
+            }
+        } catch (e) {
+            // Not JSON metadata, proceed to normal URL handling
+        }
+
+        // Handle dummy URL
+        if (url.includes('dummy-url.com')) {
+            url = 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf';
+        }
+
+        // Normal URL handling with Preview
+        openAlert({
+            variant: 'info',
+            title: 'Preview Dokumen',
+            confirmText: 'Buka Penuh',
+            onConfirm: () => openBase64(url, item.document_name),
+            message: `
+                <div style="width: 100%; height: 500px; background: #f0f0f0; border-radius: 8px; overflow: hidden; border: 1px solid #ddd;">
+                    <iframe src="${url}" width="100%" height="100%" style="border: none;"></iframe>
+                </div>
+            `
+        });
     };
 
     const handleDelete = async (id: string) => {
         openAlert({
             variant: 'error',
-            title: 'Hapus Arsip',
-            message: 'Apakah Anda yakin ingin menghapus data arsip ini? Tindakan ini tidak dapat dibatalkan.',
+            title: 'Hapus ke Recycle Bin',
+            message: 'Apakah Anda yakin ingin memindahkan data arsip ini ke Recycle Bin? Data akan tersimpan selama 48 jam sebelum dihapus permanen.',
             showCancel: true,
-            confirmText: 'Ya, Hapus',
+            confirmText: 'Pindahkan ke Recycle Bin',
             onConfirm: async () => {
                 try {
                     await axios.delete(`/arsip/${id}`);
@@ -549,6 +627,26 @@ const ArsipView = () => {
                 mode={dialogMode}
                 initialValues={selectedItem}
                 onSubmit={handleSubmit}
+            />
+
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3 }}>
+                <Tooltip title="Buka Recycle Bin">
+                    <IconButton
+                        onClick={() => setRecycleBinOpen(true)}
+                        sx={{
+                            color: theme.palette.grey[500],
+                            bgcolor: alpha(theme.palette.grey[500], 0.05),
+                            '&:hover': { bgcolor: alpha(theme.palette.grey[500], 0.1) }
+                        }}
+                    >
+                        <Trash size={18} variant="Bold" />
+                    </IconButton>
+                </Tooltip>
+            </Box>
+
+            <RecycleBinDialog
+                open={recycleBinOpen}
+                onClose={() => setRecycleBinOpen(false)}
             />
         </Box>
     );

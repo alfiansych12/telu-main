@@ -50,8 +50,8 @@ const CustomAlert = () => {
                 sx: {
                     borderRadius: 4,
                     padding: 2,
-                    maxWidth: 400,
-                    width: '90%',
+                    maxWidth: 800,
+                    width: '95%',
                     overflow: 'visible',
                     backdropFilter: 'blur(10px)',
                     backgroundColor: alpha(theme.palette.background.paper, 0.9),
@@ -88,9 +88,18 @@ const CustomAlert = () => {
                                 {alert.title}
                             </Typography>
                         )}
-                        <Typography variant="body1" color="textSecondary" sx={{ textAlign: 'center', fontSize: '1.1rem', whiteSpace: 'pre-line' }}>
-                            {alert.message}
-                        </Typography>
+                        <Typography
+                            variant="body1"
+                            color="textSecondary"
+                            sx={{
+                                textAlign: 'center',
+                                fontSize: '1.1rem',
+                                whiteSpace: 'pre-line',
+                                '& p': { m: 0, mb: 0.5 },
+                                '& strong': { color: theme.palette.text.primary }
+                            }}
+                            dangerouslySetInnerHTML={{ __html: alert.message }}
+                        />
                     </Stack>
 
                     <Stack direction="row" spacing={2} sx={{ width: 1, mt: 2 }}>

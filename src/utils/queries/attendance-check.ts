@@ -14,6 +14,7 @@ export interface AbsentIntern {
     supervisor_id: string;
     supervisor_name: string;
     supervisor_email: string;
+    supervisor_telegram_username: string | null;
     internship_start: Date | null;
     internship_end: Date | null;
 }
@@ -40,6 +41,7 @@ export async function getAbsentInternsToday(type: 'check_in' | 'check_out' = 'ch
                 s.id as supervisor_id,
                 s.name as supervisor_name,
                 s.email as supervisor_email,
+                s.telegram_username as supervisor_telegram_username,
                 u.internship_start,
                 u.internship_end
             FROM users u
@@ -115,6 +117,7 @@ export async function getAbsentInternsTodayORM(): Promise<AbsentIntern[]> {
                 supervisor_id: intern.supervisor?.id || '',
                 supervisor_name: intern.supervisor?.name || 'N/A',
                 supervisor_email: intern.supervisor?.email || '',
+                supervisor_telegram_username: (intern.supervisor as any)?.telegram_username || null,
                 internship_start: intern.internship_start,
                 internship_end: intern.internship_end
             }));
@@ -140,6 +143,7 @@ export async function getAbsentInternsGroupedBySupervisor(type: 'check_in' | 'ch
                 supervisor_id: intern.supervisor_id,
                 supervisor_name: intern.supervisor_name,
                 supervisor_email: intern.supervisor_email,
+                telegram_username: intern.supervisor_telegram_username,
                 absent_interns: []
             };
         }
@@ -156,6 +160,7 @@ export async function getAbsentInternsGroupedBySupervisor(type: 'check_in' | 'ch
         supervisor_id: string;
         supervisor_name: string;
         supervisor_email: string;
+        telegram_username: string | null;
         absent_interns: Array<{
             intern_id: string;
             intern_name: string;

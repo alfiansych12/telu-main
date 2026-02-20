@@ -1,7 +1,7 @@
 'use server';
 
 import prisma from 'lib/prisma';
-import { AttendanceStatus } from '@prisma/client';
+import { AttendanceStatus, UserRole } from '@prisma/client';
 import { getserverAuthSession } from 'utils/authOptions';
 import { AttendanceWithRelations } from 'types/api';
 import { createNotification } from './notifications';
@@ -13,6 +13,7 @@ export interface GetAttendancesFilters {
     status?: 'present' | 'absent' | 'late' | 'permit' | 'sick' | 'rejected';
     dateFrom?: string;
     dateTo?: string;
+    role?: string;
     page?: number;
     pageSize?: number;
 }
@@ -100,6 +101,11 @@ export async function getAttendances(filters: GetAttendancesFilters = {}) {
             }
         }
 
+        if (filters.role && filters.role !== 'all') {
+            where.user = where.user || {};
+            where.user.role = filters.role as UserRole;
+        }
+
         const [attendances, , users, leaveRequests] = await Promise.all([
             prisma.attendance.findMany({
                 where,
@@ -109,6 +115,7 @@ export async function getAttendances(filters: GetAttendancesFilters = {}) {
                             id: true,
                             name: true,
                             email: true,
+                            institution_name: true,
                             unit: {
                                 select: {
                                     name: true
@@ -126,7 +133,7 @@ export async function getAttendances(filters: GetAttendancesFilters = {}) {
             // Fetch all participants to check for those who didn't check in
             prisma.user.findMany({
                 where: {
-                    role: 'participant',
+                    role: filters.role && filters.role !== 'all' ? (filters.role as UserRole) : 'participant',
                     status: 'active',
                     // Apply filters if we are filtering by unit or supervisor
                     ...(filters.unitId ? { unit_id: filters.unitId } : {}),
@@ -139,6 +146,7 @@ export async function getAttendances(filters: GetAttendancesFilters = {}) {
                     email: true,
                     internship_start: true,
                     internship_end: true,
+                    institution_name: true,
                     unit_id: true,
                     unit: { select: { name: true } }
                 }
@@ -243,7 +251,7 @@ export async function getAttendances(filters: GetAttendancesFilters = {}) {
                                 id: u.id,
                                 name: u.name,
                                 email: u.email,
-                                unit: u.unit
+                                unit: (u as any).unit
                             },
                             created_at: new Date(),
                             updated_at: new Date()
@@ -337,11 +345,57 @@ export async function getAttendances(filters: GetAttendancesFilters = {}) {
             excused: combined.filter(c => c.status === 'permit' || c.status === 'sick').length,
         };
 
-        // Slice to current page size
+        // 6. Calculate per-user summary for the "Summary View" tab
+        const userSummaryMap = new Map();
+        combined.forEach(record => {
+            const uid = record.user_id;
+            if (!userSummaryMap.has(uid)) {
+                userSummaryMap.set(uid, {
+                    user: record.user,
+                    stats: {
+                        present: 0,
+                        late: 0,
+                        absent: 0,
+                        permit: 0,
+                        sick: 0,
+                        total_days: 0
+                    }
+                });
+            }
+            const s = userSummaryMap.get(uid);
+            s.stats.total_days++;
+            if (record.status === 'present') s.stats.present++;
+            else if (record.status === 'late') s.stats.late++;
+            else if (record.status === 'absent') s.stats.absent++;
+            else if (record.status === 'permit') s.stats.permit++;
+            else if (record.status === 'sick') s.stats.sick++;
+        });
+
+        const summary = Array.from(userSummaryMap.values()).map(s => {
+            // For the Summary tab calculation: present + late counts as attended
+            const totalAttended = s.stats.present + s.stats.late;
+            const attendanceRate = totalAttended / (s.stats.total_days || 1);
+
+            let insight = 'Excellent';
+            if (attendanceRate < 0.8) insight = 'Needs Improvement';
+            else if (s.stats.late > 2) insight = 'Good (Watch Punctuality)';
+
+            return {
+                user: s.user,
+                stats: {
+                    ...s.stats,
+                    present: totalAttended // Use total attended for the "Present" column in summary
+                },
+                insight
+            };
+        });
+
+        // 7. Slice to current page size
         const pagedResult = combined.slice(skip, skip + pageSize);
 
         return {
             data: pagedResult as unknown as AttendanceWithRelations[],
+            summary,
             total: finalTotal,
             stats,
             page,

@@ -1,7 +1,10 @@
 import prisma from 'lib/prisma';
 
-export async function getInstitutionArchives() {
-    return await prisma.institutionArchive.findMany({
+export async function getInstitutionArchives(showDeleted: boolean = false) {
+    return await (prisma as any).institutionArchive.findMany({
+        where: {
+            deleted_at: showDeleted ? { not: null } : null
+        },
         orderBy: {
             created_at: 'desc',
         },
@@ -33,8 +36,55 @@ export async function updateInstitutionArchive(id: string, data: any) {
     });
 }
 
-export async function deleteInstitutionArchive(id: string) {
-    return await prisma.institutionArchive.delete({
+export async function deleteInstitutionArchive(id: string, userId?: string) {
+    return await (prisma as any).institutionArchive.update({
         where: { id },
+        data: {
+            deleted_at: new Date(),
+            deleted_by: userId
+        }
     });
 }
+
+export async function deleteInstitutionArchives(ids: string[], userId?: string) {
+    return await (prisma as any).institutionArchive.updateMany({
+        where: { id: { in: ids } },
+        data: {
+            deleted_at: new Date(),
+            deleted_by: userId
+        }
+    });
+}
+
+export async function restoreInstitutionArchive(id: string) {
+    return await (prisma as any).institutionArchive.update({
+        where: { id },
+        data: {
+            deleted_at: null,
+            deleted_by: null
+        }
+    });
+}
+
+export async function restoreInstitutionArchives(ids: string[]) {
+    return await (prisma as any).institutionArchive.updateMany({
+        where: { id: { in: ids } },
+        data: {
+            deleted_at: null,
+            deleted_by: null
+        }
+    });
+}
+
+export async function permanentDeleteInstitutionArchive(id: string) {
+    return await prisma.institutionArchive.delete({
+        where: { id }
+    });
+}
+
+export async function permanentDeleteInstitutionArchives(ids: string[]) {
+    return await prisma.institutionArchive.deleteMany({
+        where: { id: { in: ids } }
+    });
+}
+

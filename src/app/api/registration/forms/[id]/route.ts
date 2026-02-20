@@ -105,10 +105,6 @@ export async function DELETE(
             );
         }
 
-        // Check for force delete parameter
-        const { searchParams } = new URL(request.url);
-        const forceDelete = searchParams.get('force') === 'true';
-
         // Check if form has submissions
         const form = await (prisma as any).registrationForm.findUnique({
             where: { id: params.id },
@@ -135,49 +131,20 @@ export async function DELETE(
             );
         }
 
-        // If form has submissions and not force delete
-        if (form._count.submissions > 0 && !forceDelete) {
-            const submissionStats = {
-                total: form._count.submissions,
-                pending: form.submissions.filter((s: any) => s.status === 'pending').length,
-                approved: form.submissions.filter((s: any) => s.status === 'approved').length,
-                rejected: form.submissions.filter((s: any) => s.status === 'rejected').length
-            };
+        // For soft delete, we don't necessarily need to check for submissions
+        // because we can restore everything.
 
-            return NextResponse.json(
-                {
-                    success: false,
-                    error: 'Cannot delete form with existing submissions',
-                    canForceDelete: true,
-                    submissionCount: form._count.submissions,
-                    submissionStats,
-                    recentSubmissions: form.submissions,
-                    suggestion: 'Consider deactivating the form instead of deleting it, or use force delete to remove all submissions.'
-                },
-                { status: 400 }
-            );
-        }
-
-        // Force delete - delete all submissions first
-        if (forceDelete && form._count.submissions > 0) {
-            console.log(`[DELETE] Force deleting form ${params.id} with ${form._count.submissions} submissions`);
-
-            // Delete all submissions
-            await (prisma as any).registrationSubmission.deleteMany({
-                where: { form_id: params.id }
-            });
-        }
-
-        // Delete the form
-        await (prisma as any).registrationForm.delete({
-            where: { id: params.id }
+        await (prisma as any).registrationForm.update({
+            where: { id: params.id },
+            data: {
+                deleted_at: new Date(),
+                deleted_by: (session.user as any).id
+            }
         });
 
         return NextResponse.json({
             success: true,
-            message: forceDelete
-                ? `Form and ${form._count.submissions} submission(s) deleted successfully`
-                : 'Form deleted successfully'
+            message: 'Form moved to Recycle Bin'
         });
     } catch (error) {
         console.error('Error deleting form:', error);

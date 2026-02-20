@@ -98,6 +98,7 @@ const ReportMonitoringView = () => {
       dateFrom: dateFilter || dateFrom,
       dateTo: dateFilter || dateTo,
       unitId: unitFilter !== 'all' ? unitFilter : undefined,
+      role: roleFilter,
       page,
       pageSize,
     }),

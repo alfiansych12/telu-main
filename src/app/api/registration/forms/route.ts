@@ -16,7 +16,13 @@ export async function GET(request: NextRequest) {
             );
         }
 
+        const { searchParams } = new URL(request.url);
+        const showDeleted = searchParams.get('deleted') === 'true';
+
         const forms = await (prisma as any).registrationForm.findMany({
+            where: {
+                deleted_at: showDeleted ? { not: null } : null
+            },
             orderBy: { created_at: 'desc' },
             include: {
                 _count: {
@@ -92,6 +98,53 @@ export async function POST(request: NextRequest) {
         console.error('Error creating form:', error);
         return NextResponse.json(
             { success: false, error: 'Failed to create form' },
+            { status: 500 }
+        );
+    }
+}
+// DELETE - Bulk soft delete forms
+export async function DELETE(request: NextRequest) {
+    try {
+        const session = await getserverAuthSession();
+
+        if (!session || (session.user as any)?.role !== 'admin') {
+            return NextResponse.json(
+                { success: false, error: 'Unauthorized' },
+                { status: 401 }
+            );
+        }
+
+        const { searchParams } = new URL(request.url);
+        const ids = searchParams.get('ids');
+
+        if (!ids) {
+            return NextResponse.json(
+                { success: false, error: 'No IDs provided' },
+                { status: 400 }
+            );
+        }
+
+        const idList = ids.split(',');
+        const result = await (prisma as any).registrationForm.updateMany({
+            where: {
+                id: { in: idList },
+                deleted_at: null
+            },
+            data: {
+                deleted_at: new Date(),
+                deleted_by: (session.user as any).id
+            }
+        });
+
+        return NextResponse.json({
+            success: true,
+            count: result.count,
+            message: `${result.count} forms moved to Recycle Bin`
+        });
+    } catch (error) {
+        console.error('Error bulk deleting forms:', error);
+        return NextResponse.json(
+            { success: false, error: 'Failed to delete forms' },
             { status: 500 }
         );
     }

@@ -83,9 +83,8 @@ export async function PUT(
             }
         });
 
-        let createdUser = null;
+        let createdUser: any = null;
         let message = 'Application updated successfully';
-        let generatedPassword = null;
 
         // If approved, automatically create an entry in the Institutional Archive AND Create User Account
         if (status === 'approved') {
@@ -93,126 +92,140 @@ export async function PUT(
                 const responses = application.responses as any;
                 const fields = application.form?.fields as any[] || [];
 
-                // 1. Identify key fields from form definition with better mapping
-                let name = '';
-                let email = '';
-                let phone = '';
-                let idNumber = '';
-                let startDate = new Date();
-                let endDate = new Date(new Date().setMonth(new Date().getMonth() + 3));
-
                 // Helper to find value by label keywords (case-insensitive)
-                const findValueByLabel = (keywords: string[]) => {
+                const findValueByLabel = (keywords: string[], resObj: any) => {
                     const field = fields.find(f =>
                         keywords.some(k => f.label.toLowerCase().includes(k.toLowerCase()))
                     );
-                    if (field && responses[field.id]) return responses[field.id];
+                    if (field && resObj[field.id]) return resObj[field.id];
                     return null;
                 };
 
-                // Extract data with better fallbacks
-                name = findValueByLabel(['name', 'nama', 'full name', 'nama lengkap']) || responses['1'] || 'Intern Participant';
-                email = findValueByLabel(['email', 'e-mail', 'surel']) || '';
-                phone = findValueByLabel(['phone', 'mobile', 'wa', 'whatsapp', 'hp', 'telepon', 'no hp']) || '';
-                idNumber = findValueByLabel(['nim', 'nisn', 'student id', 'nomor induk', 'id number']) || responses['2'] || '';
+                const createAccount = async (studentResponses: any, fallbackUnitId?: string) => {
+                    let sName = studentResponses.full_name || findValueByLabel(['name', 'nama', 'full name', 'nama lengkap'], studentResponses) || studentResponses['1'] || 'Intern Participant';
+                    let sEmail = studentResponses.email || studentResponses.personal_email || findValueByLabel(['email', 'e-mail', 'surel'], studentResponses) || '';
+                    let sPhone = studentResponses.phone || findValueByLabel(['phone', 'mobile', 'wa', 'whatsapp', 'hp', 'telepon', 'no hp'], studentResponses) || '';
+                    let sIdNumber = studentResponses.id_number || findValueByLabel(['nim', 'nisn', 'student id', 'nomor induk', 'id number'], studentResponses) || studentResponses['2'] || '';
 
-                // Try to find dates
-                const startDateVal = findValueByLabel(['start date', 'mulai', 'tanggal mulai', 'internship start']);
-                const endDateVal = findValueByLabel(['end date', 'selesai', 'tanggal selesai', 'internship end']);
+                    // Get unit from student data OR fallback to the form's attached unit
+                    const targetUnitId = studentResponses.unit_preference || studentResponses.unit_id || fallbackUnitId;
 
-                if (startDateVal) startDate = new Date(startDateVal);
-                if (endDateVal) endDate = new Date(endDateVal);
+                    const sStartVal = studentResponses.internship_start || findValueByLabel(['start date', 'mulai', 'tanggal mulai', 'internship start'], studentResponses);
+                    const sEndVal = studentResponses.internship_end || findValueByLabel(['end date', 'selesai', 'tanggal selesai', 'internship end'], studentResponses);
 
-                // If email not found in fields, try to find any value that looks like an email
-                if (!email) {
-                    Object.values(responses).forEach((val: any) => {
-                        if (typeof val === 'string' && val.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
-                            email = val;
+                    let sStart = sStartVal ? new Date(sStartVal) : new Date();
+                    let sEnd = sEndVal ? new Date(sEndVal) : new Date(new Date().setMonth(new Date().getMonth() + 3));
+
+                    if (!sEmail) {
+                        Object.values(studentResponses).forEach((val: any) => {
+                            if (typeof val === 'string' && val.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+                                if (val.length < 100 && !val.includes('fakepath')) sEmail = val;
+                            }
+                        });
+                    }
+
+                    if (!sEmail) {
+                        // Clean name for email part
+                        let namePart = String(sName || 'user').toLowerCase();
+                        if (namePart.includes('fakepath')) {
+                            namePart = 'student';
                         }
-                    });
-                }
+                        const sanName = namePart.replace(/[^a-zA-Z0-9]/g, '').substring(0, 20);
+                        const sanInst = String(application.institution_name).replace(/[^a-zA-Z0-9]/g, '').toLowerCase().substring(0, 15);
+                        sEmail = `${sanName}.${sanInst}@temp-intern.local`;
+                    }
 
-                // Fallback email if absolutely none found
-                if (!email) {
-                    const sanitizedName = name.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-                    const sanitizedInstitution = application.institution_name.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-                    email = `${sanitizedName}.${sanitizedInstitution}@temp-intern.local`;
-                }
+                    if (sName && String(sName).includes('fakepath')) {
+                        // If it's a batch/bulk, we might just have the school name in the 'full_name' field
+                        sName = application.institution_name + ' Student';
+                    }
 
-                // 2. Create User Account if not exists
-                const existingUser = await (prisma as any).user.findUnique({ where: { email } });
-
-                if (!existingUser) {
-                    // Generate secure random password
-                    const generatePassword = () => {
-                        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%';
-                        let password = '';
-                        for (let i = 0; i < 12; i++) {
-                            password += chars.charAt(Math.floor(Math.random() * chars.length));
-                        }
-                        return password;
-                    };
-
-                    generatedPassword = generatePassword();
-
-                    createdUser = await (prisma as any).user.create({
-                        data: {
-                            name,
-                            email,
-                            password: generatedPassword,
+                    const existing = await (prisma as any).user.findUnique({ where: { email: sEmail } });
+                    if (!existing) {
+                        const userData: any = {
+                            name: sName,
+                            email: sEmail,
+                            password: 'password123',
                             role: 'participant',
                             status: 'active',
                             institution_name: application.institution_name,
-                            phone: String(phone),
-                            id_number: String(idNumber),
-                            internship_start: startDate,
-                            internship_end: endDate,
+                            phone: String(sPhone),
+                            id_number: String(sIdNumber),
+                            internship_start: sStart,
+                            internship_end: sEnd,
                             created_at: new Date()
+                        };
+
+                        if (targetUnitId) {
+                            userData.unit_id = targetUnitId;
                         }
-                    });
 
-                    message = `✅ Application approved successfully!\n\n` +
-                        `📧 User Account Created:\n` +
-                        `- Email: ${email}\n` +
-                        `- Password: ${generatedPassword}\n` +
-                        `- Name: ${name}\n` +
-                        `- ID Number: ${idNumber}\n\n` +
-                        `⚠️ Please inform the participant of their login credentials.`;
+                        return await (prisma as any).user.create({
+                            data: userData
+                        });
+                    }
+                    return existing;
+                };
 
-                    // TODO: Send notification email/telegram to participant
-                    // await sendWelcomeNotification(email, name, generatedPassword);
-
+                // Logic for Bulk vs Single
+                if (responses.is_bulk && Array.isArray(responses.students)) {
+                    const studentCount = responses.students.length;
+                    const emails = responses.students.map((s: any) => s.personal_email || s.email).filter(Boolean);
+                    console.log(`[APPROVAL] Processing batch of ${studentCount} students`);
+                    for (const student of responses.students) {
+                        await createAccount(student);
+                    }
+                    message = `✅ Batch application approved successfully!\n\nTotal: ${studentCount} student accounts created.\nPassword: password123`;
+                    createdUser = {
+                        name: `${studentCount} Students (Batch)`,
+                        email: emails.join(', '),
+                        id_number: '-'
+                    };
                 } else {
-                    message = `⚠️ Application approved, but user with email ${email} already exists in the system.`;
-                    createdUser = existingUser;
+                    const singleUnitId = findValueByLabel(['unit', 'departemen', 'divisi', 'pilihan unit'], responses);
+                    createdUser = await createAccount(responses, singleUnitId);
+                    message = `✅ Application approved successfully!\n\nEmail: ${createdUser.email}\nPassword: password123`;
                 }
 
                 // 3. Create Archive Entry with proper metadata
-                const docName = `Registration_${application.institution_name.replace(/[^a-zA-Z0-9]/g, '_')}_${name.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().getTime()}.pdf`;
+                const files = (application.files as any) || {};
+                const fileList = Object.values(files) as any[];
 
-                // Create a metadata object to store in document_url (since we don't have actual file yet)
+                const primaryName = createdUser?.name || application.institution_name;
+                const primaryEmail = createdUser?.email || 'batch@system';
+                const primaryId = createdUser?.id_number || '-';
+                const archiveStartDate = createdUser?.internship_start || new Date();
+                const archiveEndDate = createdUser?.internship_end || new Date(new Date().setMonth(new Date().getMonth() + 3));
+
                 const archiveMetadata = {
                     source: 'registration_form',
                     form_id: application.form_id,
                     submission_id: application.id,
-                    participant_name: name,
-                    participant_email: email,
-                    participant_id_number: idNumber,
+                    participant_name: primaryName,
+                    participant_email: primaryEmail,
+                    participant_id_number: primaryId,
                     approved_at: new Date().toISOString(),
-                    note: 'Auto-generated from registration form approval'
+                    note: responses.is_bulk ? `Mass Registration - ${responses.student_count} students` : 'Individual Registration',
+                    files: files,
+                    responses: responses // Include responses for fallback
                 };
+
+                let finalDocName = `Registration_${String(application.institution_name).replace(/[^a-zA-Z0-9]/g, '_')}_${String(primaryName).replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().getTime()}.pdf`;
+                if (fileList.length > 0) {
+                    finalDocName = fileList[0].name || finalDocName;
+                }
 
                 await (prisma as any).institutionArchive.create({
                     data: {
                         institution_name: application.institution_name,
-                        internship_period_start: startDate,
-                        internship_period_end: endDate,
-                        document_name: docName,
-                        document_url: JSON.stringify(archiveMetadata) // Store metadata as JSON string
+                        internship_period_start: archiveStartDate,
+                        internship_period_end: archiveEndDate,
+                        document_name: finalDocName,
+                        document_url: JSON.stringify(archiveMetadata)
                     }
                 });
 
-                console.log(`[APPROVAL] Application ${params.id} approved. User created: ${email}`);
+                console.log(`[APPROVAL] Application ${params.id} approved. Result: ${message}`);
 
             } catch (error) {
                 console.error('Failed to perform post-approval actions:', error);
@@ -233,6 +246,42 @@ export async function PUT(
         console.error('Error updating application status:', error);
         return NextResponse.json(
             { success: false, error: 'Failed to update application' },
+            { status: 500 }
+        );
+    }
+}
+
+// DELETE - Delete application
+export async function DELETE(
+    request: NextRequest,
+    { params }: { params: { id: string } }
+) {
+    try {
+        const session = await getserverAuthSession();
+
+        if (!session || (session.user as any)?.role !== 'admin') {
+            return NextResponse.json(
+                { success: false, error: 'Unauthorized' },
+                { status: 401 }
+            );
+        }
+
+        await (prisma as any).registrationSubmission.update({
+            where: { id: params.id },
+            data: {
+                deleted_at: new Date(),
+                deleted_by: (session.user as any).id
+            }
+        });
+
+        return NextResponse.json({
+            success: true,
+            message: 'Application moved to Recycle Bin'
+        });
+    } catch (error) {
+        console.error('Error deleting application:', error);
+        return NextResponse.json(
+            { success: false, error: 'Failed to delete application' },
             { status: 500 }
         );
     }

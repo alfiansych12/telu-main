@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAbsentInternsGroupedBySupervisor } from '@/utils/queries/attendance-check';
 import { sendTelegramNotification, formatAttendanceNotificationMessage } from '@/utils/api/telegram';
-import prisma from 'lib/prisma';
 import { getserverAuthSession } from 'utils/authOptions';
 
 /**
@@ -39,13 +38,10 @@ export async function POST(request: NextRequest) {
         let failedCount = 0;
 
         for (const group of groupedAbsentInterns) {
-            // Ambil telegram_username dari database
-            const supervisor = await prisma.user.findUnique({
-                where: { id: group.supervisor_id },
-                select: { telegram_username: true }
-            });
+            // telegram_username sudah diambil di level query SQL
+            const telegram_username = group.telegram_username;
 
-            if (!supervisor || !supervisor.telegram_username) {
+            if (!telegram_username) {
                 console.warn(`Supervisor ${group.supervisor_email} tidak memiliki telegram_username`);
                 results.push({
                     supervisor: group.supervisor_email,
@@ -66,7 +62,7 @@ export async function POST(request: NextRequest) {
 
             // Kirim notifikasi
             const telegramResult = await sendTelegramNotification({
-                recipientId: supervisor.telegram_username,
+                recipientId: telegram_username,
                 title: title,
                 message: message,
                 parseMode: 'HTML',
@@ -75,7 +71,7 @@ export async function POST(request: NextRequest) {
 
             results.push({
                 supervisor: group.supervisor_email,
-                telegram_username: supervisor.telegram_username,
+                telegram_username: telegram_username,
                 absent_count: group.absent_interns.length,
                 success: telegramResult.success,
                 error: telegramResult.error
@@ -130,11 +126,6 @@ export async function GET(request: NextRequest) {
         // Tambahkan info telegram_username untuk setiap supervisor
         const preview = await Promise.all(
             groupedAbsentInterns.map(async (group) => {
-                const supervisor = await prisma.user.findUnique({
-                    where: { id: group.supervisor_id },
-                    select: { telegram_username: true }
-                });
-
                 const { title, message } = await formatAttendanceNotificationMessage(
                     group.supervisor_name,
                     group.absent_interns
@@ -143,7 +134,7 @@ export async function GET(request: NextRequest) {
                 return {
                     supervisor_name: group.supervisor_name,
                     supervisor_email: group.supervisor_email,
-                    telegram_username: supervisor?.telegram_username || 'TIDAK TERDAFTAR',
+                    telegram_username: group.telegram_username || 'TIDAK TERDAFTAR',
                     absent_count: group.absent_interns.length,
                     absent_interns: group.absent_interns,
                     preview_title: title,

@@ -66,11 +66,14 @@ export default function ProfilePage() {
   // Sync form data when userData matches
   React.useEffect(() => {
     if (userData) {
+      const loginEmail = userData.email || '';
+      const autoTelegramUsername = loginEmail.split('@')[0];
+
       setFormData(prev => ({
         ...prev,
         name: userData.name || '',
-        email: userData.email || '',
-        telegram_username: userData.telegram_username || '',
+        email: loginEmail,
+        telegram_username: autoTelegramUsername,
         photo: userData.photo || '',
         phone: userData.phone || '',
         institution_name: userData.institution_name || '',
@@ -312,7 +315,11 @@ export default function ProfilePage() {
                     <TextField
                       fullWidth
                       value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      onChange={(e) => {
+                        const newEmail = e.target.value;
+                        const newTelegram = newEmail.split('@')[0];
+                        setFormData({ ...formData, email: newEmail, telegram_username: newTelegram });
+                      }}
                       placeholder="Enter username"
                     />
                   </Stack>
@@ -324,7 +331,7 @@ export default function ProfilePage() {
                     <TextField
                       fullWidth
                       value={formData.telegram_username}
-                      onChange={(e) => setFormData({ ...formData, telegram_username: e.target.value })}
+                      InputProps={{ readOnly: true }}
                       placeholder="e.g. adityamnss"
                       helperText={
                         <Typography variant="caption" color="textSecondary" component="div">
@@ -455,7 +462,7 @@ export default function ProfilePage() {
                     <Button variant="outlined" color="secondary" onClick={() => setFormData({
                       name: displayUser.name || '',
                       email: displayUser.email || '',
-                      telegram_username: displayUser.telegram_username || '',
+                      telegram_username: (displayUser.email || '').split('@')[0],
                       photo: displayUser.photo || '',
                       phone: displayUser.phone || '',
                       institution_name: displayUser.institution_name || '',

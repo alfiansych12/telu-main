@@ -137,14 +137,6 @@ const InternshipFinishedState = ({
 
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="center">
                     <Button
-                        variant="outlined"
-                        size="large"
-                        onClick={() => window.location.href = '/profile'}
-                        sx={{ borderRadius: 3, px: 4, py: 1.5, borderWidth: 2, '&:hover': { borderWidth: 2 } }}
-                    >
-                        <FormattedMessage id="internship.finished.view_profile" />
-                    </Button>
-                    <Button
                         variant="contained"
                         size="large"
                         startIcon={certLoading ? <CircularProgress size={20} color="inherit" /> : <Award variant="Bold" />}

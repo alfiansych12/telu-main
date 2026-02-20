@@ -27,7 +27,9 @@ import {
     Divider,
     MenuItem,
     Snackbar,
-    Alert
+    Alert,
+    TablePagination,
+    CircularProgress
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import {
@@ -39,10 +41,15 @@ import {
     Building,
     DocumentDownload,
     Magicpen,
-    Copy
+    DocumentUpload,
+    Trash
 } from 'iconsax-react';
-
-
+import { useQuery } from '@tanstack/react-query';
+import { getManagementPageData } from 'utils/api/batch';
+import { bulkImportRegistrations } from 'utils/api/import-registrations';
+import BulkRegistrationImportDialog from './components/BulkRegistrationImportDialog';
+import RecycleBinDialog from '../components/RecycleBinDialog';
+import { openAlert } from 'api/alert';
 
 const ApplicationsView = () => {
     const theme = useTheme();
@@ -53,6 +60,23 @@ const ApplicationsView = () => {
     const [selectedApp, setSelectedApp] = useState<any | null>(null);
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
     const [successDialog, setSuccessDialog] = useState<{ open: boolean; data: any }>({ open: false, data: null });
+    const [bulkImportOpen, setBulkImportOpen] = useState(false);
+    const [isImporting, setIsImporting] = useState(false);
+    const [page, setPage] = useState(0);
+    const [rowsPerPage, setRowsPerPage] = useState(10);
+    const [total, setTotal] = useState(0);
+    const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; id: string | 'all'; title: string }>({ open: false, id: '', title: '' });
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [recycleBinOpen, setRecycleBinOpen] = useState(false);
+
+    // Fetch reference data (units) for bulk import
+    const { data: referenceData } = useQuery({
+        queryKey: ['management-reference-data'],
+        queryFn: () => getManagementPageData({ fetchOnlyReference: true }),
+        staleTime: 300000,
+    });
+
+    const allUnitsData = referenceData?.allUnitsData?.data || [];
 
     const fetchApplications = async () => {
         setLoading(true);
@@ -60,12 +84,15 @@ const ApplicationsView = () => {
             const queryParams = new URLSearchParams();
             if (search) queryParams.append('search', search);
             if (statusFilter !== 'all') queryParams.append('status', statusFilter);
+            queryParams.append('page', (page + 1).toString());
+            queryParams.append('pageSize', rowsPerPage.toString());
 
             const res = await fetch(`/api/registration/applications?${queryParams}`);
             const data = await res.json();
 
             if (data.success) {
                 setApplications(data.applications);
+                setTotal(data.pagination?.total || 0);
             }
         } catch (error) {
             console.error('Failed to fetch applications', error);
@@ -80,7 +107,16 @@ const ApplicationsView = () => {
             fetchApplications();
         }, 500); // Debounce search
         return () => clearTimeout(timer);
-    }, [search, statusFilter]);
+    }, [search, statusFilter, page, rowsPerPage]);
+
+    const handleChangePage = (event: unknown, newPage: number) => {
+        setPage(newPage);
+    };
+
+    const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
+        setRowsPerPage(parseInt(event.target.value, 10));
+        setPage(0);
+    };
 
     const handleUpdateStatus = async (id: string, newStatus: string) => {
         try {
@@ -117,6 +153,73 @@ const ApplicationsView = () => {
         }
     };
 
+    const handleBulkImport = async (data: any[], unitIds: string[]) => {
+        setIsImporting(true);
+        try {
+            const formsRes = await fetch('/api/registration/forms');
+            const formsData = await formsRes.json();
+            const targetForm = formsData.forms?.find((f: any) => f.is_active) || formsData.forms?.[0];
+
+            if (!targetForm) {
+                setSnackbar({ open: true, message: 'No registration form found to attach imports to.', severity: 'error' });
+                return;
+            }
+
+            const result = await bulkImportRegistrations(targetForm.id, unitIds, data);
+
+            if (result.success) {
+                setSnackbar({ open: true, message: result.message || 'Bulk import successful', severity: 'success' });
+                setBulkImportOpen(false);
+                fetchApplications(); // Refresh list
+            } else {
+                setSnackbar({ open: true, message: result.message || 'Import failed', severity: 'error' });
+            }
+        } catch (error: any) {
+            console.error('Bulk import error:', error);
+            setSnackbar({ open: true, message: error.message || 'System error during import', severity: 'error' });
+        } finally {
+            setIsImporting(false);
+        }
+    };
+
+    const handleDelete = async (id: string | 'all') => {
+        setIsDeleting(true);
+        try {
+            const url = id === 'all'
+                ? `/api/registration/applications?all=true${statusFilter !== 'all' ? `&status=${statusFilter}` : ''}`
+                : `/api/registration/applications/${id}`;
+
+            const res = await fetch(url, { method: 'DELETE' });
+            const data = await res.json();
+
+            if (data.success) {
+                setSnackbar({ open: true, message: data.message || 'Moved to Recycle Bin', severity: 'success' });
+                setDeleteConfirm({ open: false, id: '', title: '' });
+                fetchApplications(); // Refresh list
+            } else {
+                setSnackbar({ open: true, message: data.error || 'Failed to move to Recycle Bin', severity: 'error' });
+            }
+        } catch (error) {
+            console.error('Delete error:', error);
+            setSnackbar({ open: true, message: 'Failed to delete application', severity: 'error' });
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    const handleDeleteClick = (id: string | 'all', title: string) => {
+        openAlert({
+            title: id === 'all' ? 'Move All to Recycle Bin?' : 'Move to Recycle Bin?',
+            message: id === 'all'
+                ? `Are you sure you want to move all currently filtered applications to the Recycle Bin? They will be kept for 48 hours.`
+                : `Are you sure you want to move the application from "${title}" to the Recycle Bin?`,
+            variant: 'error',
+            showCancel: true,
+            confirmText: 'Move to Recycle Bin',
+            onConfirm: () => handleDelete(id)
+        });
+    };
+
     const getStatusColor = (status: string) => {
         switch (status) {
             case 'approved': return 'success';
@@ -135,8 +238,24 @@ const ApplicationsView = () => {
                     </Typography>
                 </Box>
                 <Stack direction="row" spacing={1.5}>
-                    <Button variant="outlined" startIcon={<Magicpen size={20} />} sx={{ borderRadius: 2 }}>
-                        Bulk Process
+                    <Button
+                        variant="outlined"
+                        color="error"
+                        startIcon={<Trash size={20} />}
+                        sx={{ borderRadius: 2 }}
+                        onClick={() => handleDeleteClick('all', statusFilter === 'all' ? 'All Applications' : `All ${statusFilter} Applications`)}
+                        disabled={applications.length === 0}
+                    >
+                        Delete All
+                    </Button>
+                    <Button
+                        variant="outlined"
+                        color="primary"
+                        startIcon={<DocumentUpload size={20} />}
+                        sx={{ borderRadius: 2 }}
+                        onClick={() => setBulkImportOpen(true)}
+                    >
+                        Bulk Import
                     </Button>
                     <Button variant="contained" color="primary" startIcon={<DocumentDownload size={20} variant="Bold" />} sx={{ borderRadius: 2, px: 3 }}>
                         Export to Excel
@@ -150,7 +269,10 @@ const ApplicationsView = () => {
                         placeholder="Search student or institution..."
                         size="small"
                         value={search}
-                        onChange={(e) => setSearch(e.target.value)}
+                        onChange={(e) => {
+                            setSearch(e.target.value);
+                            setPage(0);
+                        }}
                         sx={{ flexGrow: 1 }}
                         InputProps={{
                             startAdornment: <InputAdornment position="start"><SearchNormal1 size={18} /></InputAdornment>,
@@ -160,7 +282,10 @@ const ApplicationsView = () => {
                         select
                         size="small"
                         value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
+                        onChange={(e) => {
+                            setStatusFilter(e.target.value);
+                            setPage(0);
+                        }}
                         sx={{ minWidth: 150 }}
                     >
                         <MenuItem value="all">All Status</MenuItem>
@@ -242,6 +367,15 @@ const ApplicationsView = () => {
                                                     </Tooltip>
                                                 </>
                                             )}
+                                            <Tooltip title="Delete">
+                                                <IconButton
+                                                    size="small"
+                                                    onClick={() => handleDeleteClick(app.id, app.institution_name)}
+                                                    sx={{ bgcolor: alpha(theme.palette.error.main, 0.05), color: theme.palette.error.main }}
+                                                >
+                                                    <Trash size={18} />
+                                                </IconButton>
+                                            </Tooltip>
                                         </Stack>
                                     </TableCell>
                                 </TableRow>
@@ -249,6 +383,22 @@ const ApplicationsView = () => {
                         )}
                     </TableBody>
                 </Table>
+                <TablePagination
+                    rowsPerPageOptions={[5, 10, 25, 50]}
+                    component="div"
+                    count={total}
+                    rowsPerPage={rowsPerPage}
+                    page={page}
+                    onPageChange={handleChangePage}
+                    onRowsPerPageChange={handleChangeRowsPerPage}
+                    sx={{
+                        borderTop: '1px solid #eee',
+                        '.MuiTablePagination-selectLabel, .MuiTablePagination-displayedRows': {
+                            fontWeight: 600,
+                            color: 'text.secondary'
+                        }
+                    }}
+                />
             </TableContainer>
 
             {/* Detail Dialog */}
@@ -279,12 +429,9 @@ const ApplicationsView = () => {
                             <Typography variant="h6" sx={{ fontWeight: 800, mb: 2 }}>Form Responses</Typography>
                             <Stack spacing={2}>
                                 {selectedApp && selectedApp.responses && Object.entries(selectedApp.responses as Record<string, any>).map(([key, value]) => {
-                                    // Try to find the label from the field ID if possible, otherwise use ID
-                                    // In a real app, you might want to store labels in submission or fetch form definition
                                     return (
                                         <Paper key={key} variant="outlined" sx={{ p: 2, borderRadius: 2, bgcolor: '#fcfcfc' }}>
                                             <Typography variant="caption" color="textSecondary" sx={{ fontWeight: 700, textTransform: 'uppercase' }}>
-                                                {/* Display key or label */}
                                                 Question ID: {key}
                                             </Typography>
                                             <Typography variant="body1" sx={{ fontWeight: 600, mt: 0.5 }}>
@@ -316,35 +463,16 @@ const ApplicationsView = () => {
                 </DialogActions>
             </Dialog>
 
-            {/* Success Dialog with Credentials */}
-            <Dialog
-                open={successDialog.open}
-                onClose={() => setSuccessDialog({ open: false, data: null })}
-                maxWidth="sm"
-                fullWidth
-            >
-                <DialogTitle sx={{
-                    p: 3,
-                    bgcolor: alpha(theme.palette.success.main, 0.1),
-                    borderBottom: `2px solid ${theme.palette.success.main}`
-                }}>
+            {/* Success Dialog */}
+            <Dialog open={successDialog.open} onClose={() => setSuccessDialog({ open: false, data: null })} maxWidth="sm" fullWidth>
+                <DialogTitle sx={{ p: 3, bgcolor: alpha(theme.palette.success.main, 0.1), borderBottom: `2px solid ${theme.palette.success.main}` }}>
                     <Stack direction="row" spacing={2} alignItems="center">
-                        <Box sx={{
-                            p: 1.5,
-                            bgcolor: theme.palette.success.main,
-                            borderRadius: 2,
-                            color: 'white',
-                            display: 'flex'
-                        }}>
+                        <Box sx={{ p: 1.5, bgcolor: theme.palette.success.main, borderRadius: 2, color: 'white', display: 'flex' }}>
                             <TickCircle size={32} variant="Bold" />
                         </Box>
                         <Box>
-                            <Typography variant="h5" sx={{ fontWeight: 900, color: theme.palette.success.main }}>
-                                Application Approved!
-                            </Typography>
-                            <Typography variant="caption" color="textSecondary">
-                                User account created successfully
-                            </Typography>
+                            <Typography variant="h5" sx={{ fontWeight: 900, color: theme.palette.success.main }}>Application Approved!</Typography>
+                            <Typography variant="caption" color="textSecondary">User account created successfully</Typography>
                         </Box>
                     </Stack>
                 </DialogTitle>
@@ -352,125 +480,61 @@ const ApplicationsView = () => {
                     {successDialog.data && (
                         <Stack spacing={3} sx={{ mt: 2 }}>
                             <Alert severity="success" sx={{ borderRadius: 2 }}>
-                                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                    ✅ New participant account has been created and is ready to use!
-                                </Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>✅ New participant account has been created!</Typography>
                             </Alert>
-
                             <Paper sx={{ p: 3, bgcolor: alpha(theme.palette.primary.main, 0.03), borderRadius: 2 }}>
-                                <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 2, color: theme.palette.primary.main }}>
-                                    📧 LOGIN CREDENTIALS
-                                </Typography>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 2, color: theme.palette.primary.main }}>📧 LOGIN CREDENTIALS</Typography>
                                 <Stack spacing={2}>
                                     <Box>
-                                        <Typography variant="caption" color="textSecondary" sx={{ fontWeight: 700 }}>
-                                            Name
-                                        </Typography>
-                                        <Stack direction="row" spacing={1} alignItems="center">
-                                            <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                                                {successDialog.data.user?.name}
-                                            </Typography>
-                                        </Stack>
+                                        <Typography variant="caption" color="textSecondary" sx={{ fontWeight: 700 }}>Email (Username)</Typography>
+                                        <Typography variant="body1" sx={{ fontWeight: 600 }}>{successDialog.data.user?.email}</Typography>
                                     </Box>
                                     <Box>
-                                        <Typography variant="caption" color="textSecondary" sx={{ fontWeight: 700 }}>
-                                            Email (Username)
-                                        </Typography>
-                                        <Stack direction="row" spacing={1} alignItems="center">
-                                            <Typography variant="body1" sx={{ fontWeight: 600, fontFamily: 'monospace' }}>
-                                                {successDialog.data.user?.email}
-                                            </Typography>
-                                            <IconButton
-                                                size="small"
-                                                onClick={() => {
-                                                    navigator.clipboard.writeText(successDialog.data.user?.email || '');
-                                                    setSnackbar({ open: true, message: 'Email copied!', severity: 'success' });
-                                                }}
-                                                sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1) }}
-                                            >
-                                                <Copy size={16} />
-                                            </IconButton>
-                                        </Stack>
-                                    </Box>
-                                    <Box>
-                                        <Typography variant="caption" color="textSecondary" sx={{ fontWeight: 700 }}>
-                                            Temporary Password
-                                        </Typography>
-                                        <Stack direction="row" spacing={1} alignItems="center">
-                                            <Typography
-                                                variant="body1"
-                                                sx={{
-                                                    fontWeight: 700,
-                                                    fontFamily: 'monospace',
-                                                    bgcolor: alpha(theme.palette.warning.main, 0.1),
-                                                    px: 1.5,
-                                                    py: 0.5,
-                                                    borderRadius: 1,
-                                                    color: theme.palette.warning.dark
-                                                }}
-                                            >
-                                                {successDialog.data.message?.match(/Password: ([^\n]+)/)?.[1] || 'N/A'}
-                                            </Typography>
-                                            <IconButton
-                                                size="small"
-                                                onClick={() => {
-                                                    const password = successDialog.data.message?.match(/Password: ([^\n]+)/)?.[1];
-                                                    if (password) {
-                                                        navigator.clipboard.writeText(password);
-                                                        setSnackbar({ open: true, message: 'Password copied!', severity: 'success' });
-                                                    }
-                                                }}
-                                                sx={{ bgcolor: alpha(theme.palette.warning.main, 0.1) }}
-                                            >
-                                                <Copy size={16} />
-                                            </IconButton>
-                                        </Stack>
-                                    </Box>
-                                    <Box>
-                                        <Typography variant="caption" color="textSecondary" sx={{ fontWeight: 700 }}>
-                                            ID Number
-                                        </Typography>
-                                        <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                                            {successDialog.data.user?.id_number || '-'}
+                                        <Typography variant="caption" color="textSecondary" sx={{ fontWeight: 700 }}>Temporary Password</Typography>
+                                        <Typography variant="body1" sx={{ fontWeight: 700, bgcolor: alpha(theme.palette.warning.main, 0.1), px: 1, borderRadius: 1 }}>
+                                            {successDialog.data.message?.match(/Password: ([^\n]+)/)?.[1] || 'password123'}
                                         </Typography>
                                     </Box>
                                 </Stack>
                             </Paper>
-
-                            <Alert severity="warning" sx={{ borderRadius: 2 }}>
-                                <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                                    ⚠️ NEXT STEPS:
-                                </Typography>
-                                <Typography variant="body2" sx={{ mt: 0.5 }}>
-                                    1. Copy the credentials above<br />
-                                    2. Send them to the participant via email/WhatsApp<br />
-                                    3. Remind them to change their password after first login
-                                </Typography>
-                            </Alert>
                         </Stack>
                     )}
                 </DialogContent>
                 <DialogActions sx={{ p: 3, borderTop: '1px solid #eee' }}>
+                    <Button onClick={() => setSuccessDialog({ open: false, data: null })} variant="contained">Done</Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Bulk Import Dialog */}
+            <BulkRegistrationImportDialog
+                open={bulkImportOpen}
+                onClose={() => setBulkImportOpen(false)}
+                units={allUnitsData}
+                formId="default-form"
+                formTitle="Excel Registration Import"
+                onImport={handleBulkImport}
+                isLoading={isImporting}
+            />
+
+            {/* Delete Confirmation Dialog */}
+            <Dialog open={deleteConfirm.open} onClose={() => !isDeleting && setDeleteConfirm({ ...deleteConfirm, open: false })}>
+                <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Trash color={theme.palette.error.main} variant="Bold" />
+                    Confirm Delete
+                </DialogTitle>
+                <DialogContent>
+                    <Typography>Are you sure you want to delete <strong>{deleteConfirm.title}</strong>? This action cannot be undone.</Typography>
+                </DialogContent>
+                <DialogActions sx={{ p: 2.5 }}>
+                    <Button onClick={() => setDeleteConfirm({ ...deleteConfirm, open: false })} color="inherit" disabled={isDeleting}>Cancel</Button>
                     <Button
-                        onClick={() => {
-                            const credentials = `Login Credentials for ${successDialog.data?.user?.name}\n\n` +
-                                `Email: ${successDialog.data?.user?.email}\n` +
-                                `Password: ${successDialog.data?.message?.match(/Password: ([^\n]+)/)?.[1]}\n\n` +
-                                `Please login at: ${window.location.origin}/login`;
-                            navigator.clipboard.writeText(credentials);
-                            setSnackbar({ open: true, message: 'Full credentials copied!', severity: 'success' });
-                        }}
-                        variant="outlined"
-                        startIcon={<Copy />}
-                    >
-                        Copy All Credentials
-                    </Button>
-                    <Box sx={{ flexGrow: 1 }} />
-                    <Button
-                        onClick={() => setSuccessDialog({ open: false, data: null })}
+                        onClick={() => handleDelete(deleteConfirm.id)}
                         variant="contained"
+                        color="error"
+                        disabled={isDeleting}
+                        startIcon={isDeleting && <CircularProgress size={16} color="inherit" />}
                     >
-                        Done
+                        {isDeleting ? 'Deleting...' : 'Delete Permanently'}
                     </Button>
                 </DialogActions>
             </Dialog>
@@ -485,7 +549,27 @@ const ApplicationsView = () => {
                     {snackbar.message}
                 </Alert>
             </Snackbar>
-        </Box >
+
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3, mb: 1 }}>
+                <Tooltip title="View Recycle Bin">
+                    <IconButton
+                        onClick={() => setRecycleBinOpen(true)}
+                        sx={{
+                            color: theme.palette.grey[500],
+                            bgcolor: alpha(theme.palette.grey[500], 0.05),
+                            '&:hover': { bgcolor: alpha(theme.palette.grey[500], 0.1) }
+                        }}
+                    >
+                        <Trash size={18} variant="Bold" />
+                    </IconButton>
+                </Tooltip>
+            </Box>
+
+            <RecycleBinDialog
+                open={recycleBinOpen}
+                onClose={() => setRecycleBinOpen(false)}
+            />
+        </Box>
     );
 };
 
